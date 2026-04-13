@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>REGATA — Corrida de Barquinhos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --ocean: #0a2a4a;
+    --ocean-mid: #0d3d6b;
+    --wave: #1a5276;
+    --foam: #5dade2;
+    --sun: #f4d03f;
+    --coral: #e74c3c;
+    --seaweed: #27ae60;
+    --sand: #fef9e7;
+    --silver: #aab7c4;
+    --gold: #f39c12;
+    --bronze: #a04000;
+    --boat1: #e74c3c;
+    --boat2: #f39c12;
+    --boat3: #27ae60;
+    --boat4: #9b59b6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--ocean);
+    color: var(--sand);
+    min-height: 100vh;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  /* ── TELA DE CARREGAMENTO ── */
+  #loading {
+    position: fixed; inset: 0; background: var(--ocean);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 999;
+    gap: 1rem;
+  }
+  #loading .logo { font-size: 3rem; font-weight: 800; letter-spacing: -2px; }
+  #loading .logo span { color: var(--foam); }
+  #loading .spinner {
+    width: 40px; height: 40px; border: 3px solid rgba(93,173,226,0.3);
+    border-top-color: var(--foam); border-radius: 50%; animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── TELAS PRINCIPAIS ── */
+  .screen { display: none; min-height: 100vh; padding: 1.5rem; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* ── TELA INICIAL (HOST) ── */
+  #screen-home {
+    align-items: center; justify-content: center; text-align: center; gap: 1.5rem;
+  }
+  .game-title { font-size: 3.5rem; font-weight: 800; letter-spacing: -3px; line-height: 1; }
+  .game-title .highlight { color: var(--foam); }
+  .game-subtitle { color: var(--silver); font-size: 1rem; font-family: 'Space Mono', monospace; }
+
+  .btn {
+    display: block; width: 100%; max-width: 320px; padding: 1rem;
+    border: 2px solid var(--foam); background: transparent; color: var(--foam);
+    font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700;
+    border-radius: 12px; cursor: pointer; transition: all 0.15s;
+    letter-spacing: 1px;
+  }
+  .btn:active { transform: scale(0.97); background: rgba(93,173,226,0.15); }
+  .btn.primary { background: var(--foam); color: var(--ocean); border-color: var(--foam); }
+  .btn.primary:active { background: #4fc3e8; }
+  .btn.danger { border-color: var(--coral); color: var(--coral); }
+  .btn.sm { padding: 0.6rem 1rem; font-size: 0.9rem; width: auto; }
+
+  input[type=text] {
+    width: 100%; max-width: 320px; padding: 1rem;
+    background: rgba(255,255,255,0.08); border: 1.5px solid rgba(93,173,226,0.4);
+    border-radius: 12px; color: var(--sand); font-family: 'Syne', sans-serif;
+    font-size: 1rem; outline: none; text-align: center;
+    transition: border-color 0.2s;
+  }
+  input[type=text]:focus { border-color: var(--foam); }
+  input[type=text]::placeholder { color: var(--silver); }
+
+  .label {
+    font-family: 'Space Mono', monospace; font-size: 0.75rem;
+    color: var(--silver); letter-spacing: 2px; text-transform: uppercase;
+  }
+
+  /* ── SALA DE ESPERA ── */
+  #screen-lobby { gap: 1.5rem; }
+  .room-code-box {
+    background: rgba(93,173,226,0.1); border: 1.5px solid var(--foam);
+    border-radius: 16px; padding: 1.5rem; text-align: center;
+  }
+  .room-code { font-size: 3rem; font-weight: 800; font-family: 'Space Mono', monospace;
+    color: var(--sun); letter-spacing: 8px; }
+
+  .players-list { display: flex; flex-direction: column; gap: 0.75rem; }
+  .player-item {
+    display: flex; align-items: center; gap: 1rem;
+    background: rgba(255,255,255,0.05); border-radius: 12px; padding: 0.9rem 1rem;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .player-boat { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+  .player-name { font-weight: 700; font-size: 1rem; }
+  .player-tag { font-size: 0.7rem; font-family: 'Space Mono'; color: var(--silver); }
+  .ready-badge {
+    margin-left: auto; font-size: 0.7rem; font-family: 'Space Mono';
+    padding: 4px 10px; border-radius: 20px;
+    background: rgba(39,174,96,0.2); color: var(--seaweed); border: 1px solid var(--seaweed);
+  }
+  .waiting-badge {
+    margin-left: auto; font-size: 0.7rem; font-family: 'Space Mono';
+    padding: 4px 10px; border-radius: 20px;
+    background: rgba(170,183,196,0.1); color: var(--silver); border: 1px solid var(--silver);
+  }
+
+  /* ── TELA DO JOGO ── */
+  #screen-game { padding: 0; gap: 0; justify-content: space-between; }
+
+  .game-header {
+    padding: 0.75rem 1rem; background: rgba(0,0,0,0.3);
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .game-header .room { font-family: 'Space Mono'; font-size: 0.75rem; color: var(--silver); }
+  .countdown-display {
+    font-family: 'Space Mono'; font-size: 1rem; font-weight: 700; color: var(--sun);
+  }
+
+  /* Pista de corrida */
+  .race-track {
+    flex: 1; padding: 1rem; display: flex; flex-direction: column;
+    gap: 0.5rem; overflow: hidden;
+  }
+  .lane {
+    flex: 1; display: flex; align-items: center; gap: 0.5rem;
+    background: rgba(255,255,255,0.04); border-radius: 10px;
+    padding: 0.4rem 0.6rem; border: 1px solid rgba(255,255,255,0.07);
+    min-height: 60px;
+  }
+  .lane-info { flex-shrink: 0; width: 60px; }
+  .lane-name { font-size: 0.75rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lane-laps { font-size: 0.65rem; font-family: 'Space Mono'; color: var(--silver); }
+
+  .lane-bar { flex: 1; height: 28px; background: rgba(0,0,0,0.3); border-radius: 6px; position: relative; overflow: visible; }
+  .lane-progress {
+    position: absolute; top: 0; left: 0; height: 100%;
+    border-radius: 6px; transition: width 0.15s ease-out;
+    min-width: 0%;
+  }
+  .boat-icon {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    font-size: 1.4rem; transition: left 0.15s ease-out;
+    filter: drop-shadow(0 0 4px rgba(0,0,0,0.5));
+    pointer-events: none;
+  }
+  .finish-line {
+    flex-shrink: 0; width: 6px; background: repeating-linear-gradient(
+      to bottom, white 0, white 4px, black 4px, black 8px
+    );
+    border-radius: 3px; height: 100%;
+    align-self: stretch;
+  }
+
+  /* Controles de remo */
+  .oar-controls {
+    padding: 1rem; display: flex; gap: 0.75rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .oar-btn {
+    flex: 1; padding: 1.4rem 0;
+    border-radius: 16px; border: none;
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: 1.1rem; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+    transition: transform 0.08s, box-shadow 0.08s;
+    position: relative; overflow: hidden;
+  }
+  .oar-btn:active { transform: scale(0.94); }
+  .oar-left { background: var(--ocean-mid); color: var(--foam); box-shadow: 0 4px 0 #08203a; }
+  .oar-left:active { box-shadow: 0 0 0 #08203a; transform: scale(0.94) translateY(4px); }
+  .oar-right { background: var(--wave); color: var(--foam); box-shadow: 0 4px 0 #0a2a4a; }
+  .oar-right:active { box-shadow: 0 0 0 #0a2a4a; transform: scale(0.94) translateY(4px); }
+  .oar-icon { font-size: 1.8rem; }
+  .oar-label { font-size: 0.65rem; font-family: 'Space Mono'; letter-spacing: 2px; color: var(--silver); }
+
+  /* Meu barco destaque */
+  .my-lane { border-color: rgba(93,173,226,0.4) !important; background: rgba(93,173,226,0.06) !important; }
+  .my-label { color: var(--foam); }
+
+  /* ── PÓDIO ── */
+  #screen-podium {
+    align-items: center; justify-content: center; gap: 1.5rem; text-align: center;
+  }
+  .podium-title { font-size: 2.5rem; font-weight: 800; color: var(--sun); }
+  .podium-subtitle { font-family: 'Space Mono'; font-size: 0.8rem; color: var(--silver); }
+
+  .podium-stage {
+    display: flex; align-items: flex-end; justify-content: center;
+    gap: 0.5rem; width: 100%; max-width: 360px; margin: 1rem 0;
+  }
+  .podium-block {
+    flex: 1; border-radius: 12px 12px 0 0; display: flex;
+    flex-direction: column; align-items: center; padding: 1rem 0.5rem;
+    position: relative;
+  }
+  .podium-block.p1 { background: linear-gradient(to bottom, #f39c12, #d68910); min-height: 140px; }
+  .podium-block.p2 { background: linear-gradient(to bottom, #aab7c4, #7f8c8d); min-height: 100px; }
+  .podium-block.p3 { background: linear-gradient(to bottom, #a04000, #7b3a15); min-height: 70px; }
+  .podium-pos { font-size: 1.8rem; font-weight: 800; }
+  .podium-boat-icon { font-size: 2rem; }
+  .podium-name { font-size: 0.85rem; font-weight: 700; margin-top: 0.3rem; color: rgba(255,255,255,0.95); }
+  .podium-extra { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; max-width: 360px; }
+  .podium-extra-item {
+    display: flex; align-items: center; gap: 1rem;
+    background: rgba(255,255,255,0.05); border-radius: 10px; padding: 0.75rem 1rem;
+  }
+  .podium-rank { font-size: 1.2rem; font-weight: 800; width: 30px; }
+  .extra-boat { font-size: 1.3rem; }
+  .extra-name { font-weight: 700; }
+
+  /* ── TELA ENTRAR ── */
+  #screen-join { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
+
+  /* ── TELA AGUARDAR ── */
+  #screen-wait { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* Waves animation */
+  .wave-bg {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 60px;
+    overflow: hidden; z-index: 0; pointer-events: none; opacity: 0.15;
+  }
+  .wave { width: 200%; height: 100%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 60'%3E%3Cpath d='M0 30 Q300 0 600 30 Q900 60 1200 30 L1200 60 L0 60Z' fill='%235dade2'/%3E%3C/svg%3E") repeat-x; animation: waveMove 4s linear infinite; }
+  @keyframes waveMove { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+
+  .confetti-emoji { font-size: 3rem; animation: bounce 0.5s infinite alternate; }
+  @keyframes bounce { from{transform:translateY(0)} to{transform:translateY(-10px)} }
+
+  /* ── RIPPLE no remo ── */
+  .ripple {
+    position: absolute; border-radius: 50%;
+    background: rgba(255,255,255,0.3); transform: scale(0);
+    animation: rippleAnim 0.4s linear;
+    pointer-events: none;
+  }
+  @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+
+  .disabled { opacity: 0.4; pointer-events: none; }
+
+  .status-msg {
+    font-family: 'Space Mono'; font-size: 0.8rem; color: var(--silver); text-align: center;
+  }
+
+  .big-count {
+    font-size: 6rem; font-weight: 800; font-family: 'Space Mono';
+    color: var(--sun); animation: pop 0.3s ease-out;
+  }
+  @keyframes pop { from{transform:scale(1.5)} to{transform:scale(1)} }
+</style>
+</head>
+<body>
+
+<!-- WAVE BG -->
+<div class="wave-bg"><div class="wave"></div></div>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="logo">RE<span>GATA</span></div>
+  <div class="spinner"></div>
+</div>
+
+<!-- TELA HOME: criar ou entrar -->
+<div class="screen" id="screen-home">
+  <div class="game-title">RE<span class="highlight">GATA</span></div>
+  <div class="game-subtitle">🚣 corrida de barquinhos</div>
+  <div style="height:1rem"></div>
+  <button class="btn primary" onclick="showCreate()">🏁 Criar Sala</button>
+  <button class="btn" onclick="showJoin()">🔗 Entrar na Sala</button>
+</div>
+
+<!-- TELA CRIAR/CONFIGURAR SALA -->
+<div class="screen" id="screen-create">
+  <div style="margin-bottom:1.5rem">
+    <div class="label">Seu nome</div>
+    <div style="height:0.5rem"></div>
+    <input type="text" id="host-name" placeholder="Ex: Capitão Silva" maxlength="20">
+  </div>
+  <div>
+    <div class="label">Distância da regata</div>
+    <div style="height:0.5rem"></div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+      <button class="btn sm dist-opt active-dist" data-dist="50" onclick="selectDist(this,50)">50 remadas</button>
+      <button class="btn sm dist-opt" data-dist="100" onclick="selectDist(this,100)">100 remadas</button>
+      <button class="btn sm dist-opt" data-dist="200" onclick="selectDist(this,200)">200 remadas</button>
+    </div>
+  </div>
+  <div style="height:0.5rem"></div>
+  <button class="btn primary" onclick="createRoom()">Criar Sala 🚤</button>
+  <button class="btn" onclick="showScreen('screen-home')">← Voltar</button>
+</div>
+
+<!-- TELA LOBBY (HOST VÊ) -->
+<div class="screen" id="screen-lobby">
+  <div class="room-code-box">
+    <div class="label">Código da sala</div>
+    <div class="room-code" id="display-code">----</div>
+    <div style="height:0.5rem"></div>
+    <div class="label" style="font-size:0.65rem">Compartilhe com até 3 amigos</div>
+  </div>
+  <div class="label">Participantes</div>
+  <div class="players-list" id="lobby-players"></div>
+  <div class="status-msg" id="lobby-status">Aguardando jogadores...</div>
+  <button class="btn primary disabled" id="start-btn" onclick="startRace()">Iniciar Regata 🏁</button>
+  <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
+</div>
+
+<!-- TELA ENTRAR -->
+<div class="screen" id="screen-join">
+  <div class="game-title" style="font-size:2.5rem">RE<span class="highlight">GATA</span></div>
+  <div>
+    <div class="label">Código da Sala</div>
+    <div style="height:0.5rem"></div>
+    <input type="text" id="join-code" placeholder="Ex: AB12" maxlength="4" style="text-transform:uppercase;letter-spacing:6px;font-size:1.5rem;font-family:'Space Mono'">
+  </div>
+  <div>
+    <div class="label">Seu nome</div>
+    <div style="height:0.5rem"></div>
+    <input type="text" id="join-name" placeholder="Ex: Marujo João" maxlength="20">
+  </div>
+  <button class="btn primary" onclick="joinRoom()">Entrar 🚣</button>
+  <button class="btn" onclick="showScreen('screen-home')">← Voltar</button>
+</div>
+
+<!-- TELA AGUARDAR (jogador não-host) -->
+<div class="screen" id="screen-wait">
+  <div style="font-size:4rem">⛵</div>
+  <div style="font-size:1.5rem;font-weight:800">Pronto para remar!</div>
+  <div class="status-msg pulse" id="wait-status">Aguardando o anfitrião iniciar...</div>
+  <div class="players-list" id="wait-players"></div>
+  <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
+</div>
+
+<!-- TELA DE CONTAGEM REGRESSIVA -->
+<div class="screen" id="screen-countdown" style="align-items:center;justify-content:center;gap:1rem;text-align:center">
+  <div class="label">A regata começa em</div>
+  <div class="big-count" id="countdown-num">3</div>
+  <div style="font-size:2rem">🚣🌊</div>
+</div>
+
+<!-- TELA DO JOGO -->
+<div class="screen" id="screen-game">
+  <div class="game-header">
+    <div class="room">SALA <span id="hdr-code" style="color:var(--sun);font-weight:700"></span></div>
+    <div class="countdown-display" id="hdr-dist"></div>
+  </div>
+  <div class="race-track" id="race-track"></div>
+  <div class="oar-controls">
+    <button class="oar-btn oar-left" id="oar-left" onclick="rowOar(event,'left')">
+      <span class="oar-icon">🚣</span>
+      <span>REMAR</span>
+      <span class="oar-label">ESQUERDA</span>
+    </button>
+    <button class="oar-btn oar-right" id="oar-right" onclick="rowOar(event,'right')">
+      <span class="oar-icon">🚣</span>
+      <span>REMAR</span>
+      <span class="oar-label">DIREITA</span>
+    </button>
+  </div>
+</div>
+
+<!-- TELA PÓDIO -->
+<div class="screen" id="screen-podium">
+  <div class="confetti-emoji">🏆</div>
+  <div class="podium-title">PÓDIO!</div>
+  <div class="podium-subtitle" id="podium-subtitle">Regata finalizada</div>
+  <div class="podium-stage" id="podium-stage"></div>
+  <div class="podium-extra" id="podium-extra"></div>
+  <div style="height:1rem"></div>
+  <button class="btn primary" onclick="playAgain()">🔄 Jogar de Novo</button>
+  <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, off, remove, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDXRN9qbTNnRX5lwQ33oEEcXOv1pxVQYwg",
+  authDomain: "regata-gamer.firebaseapp.com",
+  databaseURL: "https://regata-gamer-default-rtdb.firebaseio.com",
+  projectId: "regata-gamer",
+  storageBucket: "regata-gamer.firebasestorage.app",
+  messagingSenderId: "43164455748",
+  appId: "1:43164455748:web:8b3d49aa5b8d7da08c7d11",
+  measurementId: "G-5H94XL3Z9G"
+};
+
+// ─────────────────────────────────────────────
+// FALLBACK LOCAL: se Firebase não conectar,
+// usa localStorage p/ jogar no mesmo dispositivo
+// ─────────────────────────────────────────────
+let db = null;
+let useLocal = false;
+let localState = null;
+
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+} catch(e) {
+  useLocal = true;
+}
+
+// ── Estado local ──
+let myId = 'p' + Math.random().toString(36).slice(2,8);
+let myRoom = null;
+let isHost = false;
+let myIndex = 0;
+let selectedDist = 50;
+let lastOar = null; // para forçar alternância
+let gameListener = null;
+let raceStarted = false;
+
+const BOATS = ['🚣', '⛵', '🛶', '🚤'];
+const COLORS = ['var(--boat1)', 'var(--boat2)', 'var(--boat3)', 'var(--boat4)'];
+const BOAT_NAMES = ['barco vermelho', 'barco dourado', 'barco verde', 'barco roxo'];
+
+// ── Utils ──
+function genCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+window.showCreate = () => showScreen('screen-create');
+window.showJoin = () => showScreen('screen-join');
+
+window.selectDist = (el, d) => {
+  document.querySelectorAll('.dist-opt').forEach(b => b.classList.remove('active-dist'));
+  el.classList.add('active-dist');
+  selectedDist = d;
+};
+
+// ── CSS para botão ativo ──
+const style = document.createElement('style');
+style.textContent = '.active-dist { background: rgba(93,173,226,0.2) !important; border-color: var(--foam) !important; }';
+document.head.appendChild(style);
+
+// ──────────────────────────────
+// CRIAR SALA
+// ──────────────────────────────
+window.createRoom = async () => {
+  const name = document.getElementById('host-name').value.trim();
+  if (!name) { alert('Digite seu nome!'); return; }
+
+  const code = genCode();
+  myRoom = code;
+  isHost = true;
+  myIndex = 0;
+
+  const roomData = {
+    host: myId,
+    code,
+    dist: selectedDist,
+    status: 'lobby',
+    created: Date.now(),
+    players: {
+      [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null }
+    }
+  };
+
+  if (useLocal) {
+    localState = roomData;
+    window._localRooms = window._localRooms || {};
+    window._localRooms[code] = localState;
+  } else {
+    try {
+      await set(ref(db, `rooms/${code}`), roomData);
+    } catch(e) {
+      useLocal = true;
+      localState = roomData;
+    }
+  }
+
+  document.getElementById('display-code').textContent = code;
+  document.getElementById('hdr-code').textContent = code;
+  showScreen('screen-lobby');
+  listenRoom(code);
+};
+
+// ──────────────────────────────
+// ENTRAR NA SALA
+// ──────────────────────────────
+window.joinRoom = async () => {
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  const name = document.getElementById('join-name').value.trim();
+  if (!code || code.length !== 4) { alert('Código inválido!'); return; }
+  if (!name) { alert('Digite seu nome!'); return; }
+
+  let roomData;
+  if (useLocal) {
+    roomData = (window._localRooms || {})[code];
+  } else {
+    try {
+      const snap = await get(ref(db, `rooms/${code}`));
+      roomData = snap.val();
+    } catch(e) { useLocal = true; }
+  }
+
+  if (!roomData) { alert('Sala não encontrada!'); return; }
+  if (roomData.status !== 'lobby') { alert('Jogo já iniciado!'); return; }
+
+  const players = roomData.players || {};
+  const count = Object.keys(players).length;
+  if (count >= 4) { alert('Sala cheia! Máx. 4 jogadores.'); return; }
+
+  myRoom = code;
+  isHost = false;
+  myIndex = count;
+
+  const playerData = { name, index: count, strokes: 0, finished: false, finishTime: null };
+
+  if (useLocal) {
+    localState.players[myId] = playerData;
+  } else {
+    try {
+      await update(ref(db, `rooms/${code}/players/${myId}`), playerData);
+    } catch(e) { useLocal = true; }
+  }
+
+  document.getElementById('hdr-code').textContent = code;
+  showScreen('screen-wait');
+  listenRoom(code);
+};
+
+// ──────────────────────────────
+// OUVIR SALA EM TEMPO REAL
+// ──────────────────────────────
+function listenRoom(code) {
+  if (useLocal) {
+    // Polling local a cada 300ms
+    gameListener = setInterval(() => handleRoomUpdate(localState), 300);
+    return;
+  }
+
+  const roomRef = ref(db, `rooms/${code}`);
+  if (gameListener) off(roomRef, 'value', gameListener);
+  gameListener = onValue(roomRef, snap => {
+    const data = snap.val();
+    if (!data) { leaveRoom(); return; }
+    handleRoomUpdate(data);
+  });
+}
+
+function handleRoomUpdate(data) {
+  if (!data) return;
+  const players = data.players || {};
+  const pList = Object.entries(players).sort((a,b) => a[1].index - b[1].index);
+  const count = pList.length;
+
+  // Atualiza botão iniciar
+  const startBtn = document.getElementById('start-btn');
+  const lobbyStatus = document.getElementById('lobby-status');
+
+  if (data.status === 'lobby') {
+    // Atualiza lobby
+    renderLobbyPlayers(pList);
+    renderWaitPlayers(pList);
+    if (isHost) {
+      if (count >= 2) {
+        startBtn.classList.remove('disabled');
+        if (lobbyStatus) lobbyStatus.textContent = `${count} jogador(es) prontos — pode iniciar!`;
+      } else {
+        startBtn.classList.add('disabled');
+        if (lobbyStatus) lobbyStatus.textContent = 'Aguardando ao menos 2 jogadores...';
+      }
+    }
+  }
+
+  if (data.status === 'countdown') {
+    showScreen('screen-countdown');
+    const num = data.countdownNum ?? 3;
+    document.getElementById('countdown-num').textContent = num;
+  }
+
+  if (data.status === 'racing' && !raceStarted) {
+    raceStarted = true;
+    renderRace(data, pList);
+    showScreen('screen-game');
+    document.getElementById('hdr-dist').textContent = `🏁 ${data.dist} remadas`;
+  }
+
+  if (data.status === 'racing' && raceStarted) {
+    updateRaceLanes(data, pList);
+  }
+
+  if (data.status === 'finished') {
+    showPodium(data, pList);
+  }
+}
+
+// ──────────────────────────────
+// INICIAR REGATA (HOST)
+// ──────────────────────────────
+window.startRace = async () => {
+  if (!isHost) return;
+  // Countdown 3..2..1..GO
+  for (let i = 3; i >= 1; i--) {
+    await updateRoom({ status: 'countdown', countdownNum: i });
+    await sleep(1000);
+  }
+  await updateRoom({ status: 'racing', startTime: Date.now() });
+};
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function updateRoom(data) {
+  if (useLocal) {
+    Object.assign(localState, data);
+  } else {
+    await update(ref(db, `rooms/${myRoom}`), data);
+  }
+}
+
+// ──────────────────────────────
+// REMAR
+// ──────────────────────────────
+let oarToggle = false; // false = esq, true = dir
+window.rowOar = async (event, side) => {
+  if (!raceStarted) return;
+
+  // Efeito ripple
+  const btn = event.currentTarget;
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  r.style.cssText = `left:${x}px;top:${y}px;width:50px;height:50px;margin-left:-25px;margin-top:-25px;`;
+  btn.appendChild(r);
+  setTimeout(() => r.remove(), 400);
+
+  // Incrementa stroke do jogador
+  let currentStrokes = 0;
+  if (useLocal) {
+    currentStrokes = (localState.players[myId]?.strokes || 0);
+  } else {
+    const snap = await get(ref(db, `rooms/${myRoom}/players/${myId}/strokes`));
+    currentStrokes = snap.val() || 0;
+  }
+
+  const newStrokes = currentStrokes + 1;
+  const dist = useLocal ? localState.dist : 50;
+  const isFinished = newStrokes >= dist;
+
+  const update_data = {
+    strokes: newStrokes,
+    finished: isFinished,
+    finishTime: isFinished ? Date.now() : null
+  };
+
+  if (useLocal) {
+    Object.assign(localState.players[myId], update_data);
+    // Verificar se todos terminaram
+    checkAllFinished();
+  } else {
+    await update(ref(db, `rooms/${myRoom}/players/${myId}`), update_data);
+    if (isHost || isFinished) checkAllFinished();
+  }
+};
+
+async function checkAllFinished() {
+  let data;
+  if (useLocal) {
+    data = localState;
+  } else {
+    const snap = await get(ref(db, `rooms/${myRoom}`));
+    data = snap.val();
+  }
+  if (!data) return;
+
+  const players = Object.values(data.players || {});
+  const allDone = players.every(p => p.finished);
+  if (allDone && data.status === 'racing') {
+    await updateRoom({ status: 'finished' });
+  }
+}
+
+// ──────────────────────────────
+// RENDERIZAR PISTA
+// ──────────────────────────────
+function renderRace(data, pList) {
+  const track = document.getElementById('race-track');
+  track.innerHTML = '';
+  pList.forEach(([id, p]) => {
+    const isMe = id === myId;
+    const lane = document.createElement('div');
+    lane.className = 'lane' + (isMe ? ' my-lane' : '');
+    lane.id = 'lane-' + id;
+    lane.innerHTML = `
+      <div class="lane-info">
+        <div class="lane-name ${isMe ? 'my-label' : ''}">${isMe ? '▶ ' : ''}${p.name}</div>
+        <div class="lane-laps" id="strokes-${id}">0/${data.dist}</div>
+      </div>
+      <div class="lane-bar" id="bar-${id}">
+        <div class="lane-progress" id="prog-${id}" style="background:${COLORS[p.index]};width:0%"></div>
+        <div class="boat-icon" id="boat-${id}" style="left:0%">${BOATS[p.index]}</div>
+      </div>
+      <div class="finish-line"></div>
+    `;
+    track.appendChild(lane);
+  });
+}
+
+function updateRaceLanes(data, pList) {
+  pList.forEach(([id, p]) => {
+    const dist = data.dist || 50;
+    const pct = Math.min((p.strokes / dist) * 100, 100);
+    const prog = document.getElementById('prog-' + id);
+    const boat = document.getElementById('boat-' + id);
+    const strokesEl = document.getElementById('strokes-' + id);
+    if (prog) prog.style.width = pct + '%';
+    if (boat) boat.style.left = `calc(${pct}% - 1rem)`;
+    if (strokesEl) strokesEl.textContent = `${p.strokes}/${dist}`;
+  });
+}
+
+// ──────────────────────────────
+// PÓDIO
+// ──────────────────────────────
+function showPodium(data, pList) {
+  const sorted = [...pList].sort((a, b) => {
+    const fa = a[1].finishTime || Infinity;
+    const fb = b[1].finishTime || Infinity;
+    if (fa !== fb) return fa - fb;
+    return b[1].strokes - a[1].strokes;
+  });
+
+  const stage = document.getElementById('podium-stage');
+  const extra = document.getElementById('podium-extra');
+  stage.innerHTML = '';
+  extra.innerHTML = '';
+
+  document.getElementById('podium-subtitle').textContent = `Distância: ${data.dist} remadas`;
+
+  // Pódio top 3
+  const positions = [
+    sorted[1], // 2º à esquerda
+    sorted[0], // 1º no centro
+    sorted[2]  // 3º à direita
+  ].filter(Boolean);
+
+  const blockClass = ['p2', 'p1', 'p3'];
+  const medals = ['🥇', '🥈', '🥉'];
+  const posOrder = [2, 1, 3];
+
+  // Montar os blocos na ordem visual (2,1,3)
+  positions.forEach((entry, vi) => {
+    if (!entry) return;
+    const [id, p] = entry;
+    const realPos = sorted.indexOf(entry);
+    const block = document.createElement('div');
+    block.className = `podium-block ${blockClass[vi]}`;
+    block.innerHTML = `
+      <div class="podium-pos">${medals[realPos] || (realPos+1)+'º'}</div>
+      <div class="podium-boat-icon">${BOATS[p.index]}</div>
+      <div class="podium-name">${p.name}</div>
+    `;
+    stage.appendChild(block);
+  });
+
+  // 4º lugar
+  if (sorted[3]) {
+    const [id, p] = sorted[3];
+    const item = document.createElement('div');
+    item.className = 'podium-extra-item';
+    item.innerHTML = `<div class="podium-rank">4º</div><div class="extra-boat">${BOATS[p.index]}</div><div class="extra-name">${p.name}</div>`;
+    extra.appendChild(item);
+  }
+
+  showScreen('screen-podium');
+}
+
+// ──────────────────────────────
+// LOBBY PLAYERS
+// ──────────────────────────────
+function renderLobbyPlayers(pList) {
+  const container = document.getElementById('lobby-players');
+  if (!container) return;
+  container.innerHTML = '';
+  pList.forEach(([id, p], i) => {
+    const el = document.createElement('div');
+    el.className = 'player-item';
+    el.innerHTML = `
+      <div class="player-boat" style="background:${COLORS[p.index]}22;color:${COLORS[p.index]}">${BOATS[p.index]}</div>
+      <div>
+        <div class="player-name">${p.name}</div>
+        <div class="player-tag">${i===0?'anfitrião':'jogador '+(i+1)}</div>
+      </div>
+      <div class="${i===0?'ready-badge':'waiting-badge'}">${i===0?'pronto':'aguardando'}</div>
+    `;
+    container.appendChild(el);
+  });
+}
+
+function renderWaitPlayers(pList) {
+  const container = document.getElementById('wait-players');
+  if (!container) return;
+  container.innerHTML = '';
+  pList.forEach(([id, p], i) => {
+    const el = document.createElement('div');
+    el.className = 'player-item';
+    el.innerHTML = `
+      <div class="player-boat" style="background:${COLORS[p.index]}22">${BOATS[p.index]}</div>
+      <div class="player-name">${p.name}</div>
+    `;
+    container.appendChild(el);
+  });
+}
+
+// ──────────────────────────────
+// SAIR / JOGAR DE NOVO
+// ──────────────────────────────
+window.leaveRoom = () => {
+  if (gameListener) {
+    if (useLocal) clearInterval(gameListener);
+    else { try { off(ref(db, `rooms/${myRoom}`), 'value', gameListener); } catch(e){} }
+    gameListener = null;
+  }
+  if (isHost && myRoom) {
+    if (useLocal) { delete (window._localRooms || {})[myRoom]; localState = null; }
+    else { try { remove(ref(db, `rooms/${myRoom}`)); } catch(e){} }
+  }
+  myRoom = null; isHost = false; raceStarted = false;
+  showScreen('screen-home');
+};
+
+window.playAgain = async () => {
+  if (isHost) {
+    // Reset
+    const data = useLocal ? localState : (await get(ref(db, `rooms/${myRoom}`))).val();
+    const players = data?.players || {};
+    const reset = {};
+    Object.keys(players).forEach(id => {
+      reset[id] = { ...players[id], strokes: 0, finished: false, finishTime: null };
+    });
+    if (useLocal) { localState.players = reset; localState.status = 'lobby'; }
+    else await update(ref(db, `rooms/${myRoom}`), { status: 'lobby', players: reset });
+  }
+  raceStarted = false;
+  if (isHost) showScreen('screen-lobby');
+  else showScreen('screen-wait');
+};
+
+// ── Init ──
+document.getElementById('join-code').addEventListener('input', e => {
+  e.target.value = e.target.value.toUpperCase();
+});
+
+// Esconde loading
+setTimeout(() => {
+  document.getElementById('loading').style.display = 'none';
+  showScreen('screen-home');
+}, 800);
+
+</script>
+
+<!-- NOTA: Para jogo multidispositivo real, configure seu próprio Firebase.
+     Instruções no README gerado junto com este arquivo. -->
+</body>
+</html>
