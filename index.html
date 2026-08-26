@@ -483,8 +483,7 @@
   <div class="podium-stage" id="podium-stage"></div>
   <div class="podium-extra" id="podium-extra"></div>
   <div style="height:1rem"></div>
-  <button class="btn primary" onclick="playAgain()">🔄 Jogar de Novo</button>
-  <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
+  <button class="btn primary" onclick="leaveRoom()">🔄 Jogar de novo?</button>
 </div>
 
 <!-- Firebase -->
@@ -1187,48 +1186,6 @@ window.leaveRoom = () => {
   myRoom = null; isHost = false; raceStarted = false;
   isPublicRoom = false; publicStarting = false;
   showScreen('screen-home');
-};
-
-window.playAgain = async () => {
-  if (isPublicRoom) {
-    // Salas de "jogar com desconhecidos": não reabre lobby manual,
-    // volta para a busca de partida (pode juntar com outras pessoas)
-    if (gameListener) {
-      if (useLocal) clearInterval(gameListener);
-      else { try { off(ref(db, `rooms/${myRoom}`), 'value', gameListener); } catch(e){} }
-      gameListener = null;
-    }
-    if (isHost && myRoom) {
-      if (useLocal) {
-        if (window._publicMatchCode === myRoom) window._publicMatchCode = null;
-        delete (window._localRooms || {})[myRoom];
-      } else {
-        try {
-          const snap = await get(ref(db, 'rooms/_matchmaking/public'));
-          if (snap.val() === myRoom) await set(ref(db, 'rooms/_matchmaking/public'), null);
-        } catch(e) {}
-        try { await remove(ref(db, `rooms/${myRoom}`)); } catch(e){}
-      }
-    }
-    myRoom = null; isHost = false; myFinished = false; lastOar = null; raceStarted = false;
-    await enterQuickplay(myName);
-    return;
-  }
-
-  if (isHost) {
-    // Reset
-    const data = useLocal ? localState : (await get(ref(db, `rooms/${myRoom}`))).val();
-    const players = data?.players || {};
-    const reset = {};
-    Object.keys(players).forEach(id => {
-      reset[id] = { ...players[id], strokes: 0, finished: false, finishTime: null };
-    });
-    if (useLocal) { localState.players = reset; localState.status = 'lobby'; }
-    else await update(ref(db, `rooms/${myRoom}`), { status: 'lobby', players: reset });
-  }
-  raceStarted = false;
-  if (isHost) showScreen('screen-lobby');
-  else showScreen('screen-wait');
 };
 
 // ── Init ──
