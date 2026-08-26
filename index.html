@@ -535,6 +535,9 @@ let myFinished = false;
 let currentDist = 50;
 let myName = '';
 let raceStartTime = 0;
+let latestRoomData = null;
+let inactivityTimer = null;
+const INACTIVITY_TIMEOUT_MS = 20000; // 20s sem remar = considerado inativo
 
 const BOATS = ['🚣', '⛵', '🛶', '🚤'];
 const COLORS = ['var(--boat1)', 'var(--boat2)', 'var(--boat3)', 'var(--boat4)'];
@@ -764,6 +767,7 @@ function listenRoom(code) {
 
 function handleRoomUpdate(data) {
   if (!data) return;
+  latestRoomData = data;
   const players = data.players || {};
   const pList = Object.entries(players).sort((a,b) => a[1].index - b[1].index);
   const count = pList.length;
@@ -813,6 +817,12 @@ function handleRoomUpdate(data) {
     renderRace(data, pList);
     showScreen('screen-game');
     document.getElementById('hdr-dist').textContent = `🏁 ${data.dist} remadas`;
+
+    // Anfitrião passa a checar jogadores inativos periodicamente
+    if (isHost) {
+      if (inactivityTimer) clearInterval(inactivityTimer);
+      inactivityTimer = setInterval(checkInactivePlayers, 5000);
+    }
   }
 
   if (data.status === 'racing' && raceStarted) {
@@ -820,8 +830,41 @@ function handleRoomUpdate(data) {
   }
 
   if (data.status === 'finished') {
+    if (inactivityTimer) { clearInterval(inactivityTimer); inactivityTimer = null; }
     showPodium(data, pList);
   }
+}
+
+// ──────────────────────────────
+// DETECÇÃO DE JOGADOR INATIVO (só o anfitrião roda isso)
+// ──────────────────────────────
+async function checkInactivePlayers() {
+  if (!isHost || !raceStarted || !latestRoomData) return;
+  if (latestRoomData.status !== 'racing') return;
+
+  const players = latestRoomData.players || {};
+  const now = Date.now();
+  const toMark = [];
+
+  Object.entries(players).forEach(([id, p]) => {
+    if (!p.finished && !p.dnf) {
+      const lastActivity = p.lastMove || latestRoomData.startTime || 0;
+      if (now - lastActivity > INACTIVITY_TIMEOUT_MS) {
+        toMark.push(id);
+      }
+    }
+  });
+
+  if (toMark.length === 0) return;
+
+  if (useLocal) {
+    toMark.forEach(id => { if (localState.players[id]) localState.players[id].dnf = true; });
+  } else {
+    const updates = {};
+    toMark.forEach(id => { updates[`players/${id}/dnf`] = true; });
+    try { await update(ref(db, `rooms/${myRoom}`), updates); } catch(e) { console.error('Erro ao marcar jogador inativo:', e); }
+  }
+  checkAllFinished();
 }
 
 // ──────────────────────────────
@@ -905,7 +948,8 @@ window.rowOar = async (event, side) => {
   const update_data = {
     strokes: newStrokes,
     finished: isFinished,
-    finishTime: isFinished ? Date.now() : null
+    finishTime: isFinished ? Date.now() : null,
+    lastMove: Date.now()
   };
 
   if (useLocal) {
@@ -991,7 +1035,7 @@ async function checkAllFinished() {
   if (!data) return;
 
   const players = Object.values(data.players || {});
-  const allDone = players.every(p => p.finished);
+  const allDone = players.every(p => p.finished || p.dnf);
   if (allDone && data.status === 'racing') {
     await updateRoom({ status: 'finished' });
   }
@@ -1052,6 +1096,12 @@ function updateRaceLanes(data, pList) {
         placeEl.textContent = medals[rank] || `${rank + 1}º`;
         placeEl.style.display = 'block';
       }
+    } else if (p.dnf) {
+      if (lane) lane.classList.add('lane-finished');
+      if (placeEl) {
+        placeEl.textContent = '💤 não completou';
+        placeEl.style.display = 'block';
+      }
     }
   });
 }
@@ -1096,6 +1146,7 @@ function showPodium(data, pList) {
       <div class="podium-pos">${medals[realPos] || (realPos+1)+'º'}</div>
       <div class="podium-boat-icon">${BOATS[p.index]}</div>
       <div class="podium-name">${p.name}</div>
+      ${p.dnf ? '<div style="font-size:0.65rem;color:var(--silver)">💤 não completou</div>' : ''}
     `;
     stage.appendChild(block);
   });
@@ -1105,7 +1156,7 @@ function showPodium(data, pList) {
     const [id, p] = sorted[3];
     const item = document.createElement('div');
     item.className = 'podium-extra-item';
-    item.innerHTML = `<div class="podium-rank">4º</div><div class="extra-boat">${BOATS[p.index]}</div><div class="extra-name">${p.name}</div>`;
+    item.innerHTML = `<div class="podium-rank">4º</div><div class="extra-boat">${BOATS[p.index]}</div><div class="extra-name">${p.name}</div>${p.dnf ? '<div style="font-size:0.65rem;color:var(--silver);margin-left:auto">💤 não completou</div>' : ''}`;
     extra.appendChild(item);
   }
 
@@ -1168,6 +1219,7 @@ function renderWaitPlayers(pList) {
 // SAIR / JOGAR DE NOVO
 // ──────────────────────────────
 window.leaveRoom = () => {
+  if (inactivityTimer) { clearInterval(inactivityTimer); inactivityTimer = null; }
   if (gameListener) {
     if (useLocal) clearInterval(gameListener);
     else { try { off(ref(db, `rooms/${myRoom}`), 'value', gameListener); } catch(e){} }
@@ -1185,6 +1237,7 @@ window.leaveRoom = () => {
   }
   myRoom = null; isHost = false; raceStarted = false;
   isPublicRoom = false; publicStarting = false;
+  latestRoomData = null;
   showScreen('screen-home');
 };
 
