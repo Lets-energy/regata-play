@@ -238,6 +238,10 @@
   /* ── TELA ENTRAR ── */
   #screen-join { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
 
+  /* ── TELA JOGAR COM DESCONHECIDOS ── */
+  #screen-quickplay { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
+  #screen-quickwait { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
+
   /* ── TELA AGUARDAR ── */
   #screen-wait { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
   .pulse { animation: pulse 2s ease-in-out infinite; }
@@ -264,6 +268,13 @@
   @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
 
   .disabled { opacity: 0.4; pointer-events: none; }
+
+  .oar-btn.oar-error { animation: oarError 0.3s ease; }
+  @keyframes oarError {
+    0%, 100% { box-shadow: inherit; }
+    30% { background: var(--coral) !important; transform: translateX(-4px); }
+    60% { transform: translateX(4px); }
+  }
 
   .status-msg {
     font-family: 'Space Mono'; font-size: 0.8rem; color: var(--silver); text-align: center;
@@ -294,6 +305,8 @@
   <div style="height:1rem"></div>
   <button class="btn primary" onclick="showCreate()">🏁 Criar Sala</button>
   <button class="btn" onclick="showJoin()">🔗 Entrar na Sala</button>
+  <button class="btn" onclick="showQuickplay()">🎲 Jogar com Desconhecidos</button>
+  <button class="btn sm" onclick="showScreen('screen-tutorial')" style="border-color:var(--silver);color:var(--silver)">❓ Como Jogar</button>
 </div>
 
 <!-- TELA CRIAR/CONFIGURAR SALA -->
@@ -349,6 +362,28 @@
   <button class="btn" onclick="showScreen('screen-home')">← Voltar</button>
 </div>
 
+<!-- TELA JOGAR COM DESCONHECIDOS (formulário) -->
+<div class="screen" id="screen-quickplay">
+  <div class="game-title" style="font-size:2.5rem">RE<span class="highlight">GATA</span></div>
+  <div class="game-subtitle">🎲 partida rápida</div>
+  <div>
+    <div class="label">Seu nome</div>
+    <div style="height:0.5rem"></div>
+    <input type="text" id="quick-name" placeholder="Ex: Marujo João" maxlength="20">
+  </div>
+  <button class="btn primary" onclick="quickPlay()">Procurar Partida 🎲</button>
+  <button class="btn" onclick="showScreen('screen-home')">← Voltar</button>
+</div>
+
+<!-- TELA AGUARDAR PARTIDA RÁPIDA (host e demais) -->
+<div class="screen" id="screen-quickwait">
+  <div style="font-size:4rem" class="pulse">🎲</div>
+  <div style="font-size:1.5rem;font-weight:800">Procurando remadores...</div>
+  <div class="status-msg" id="quickwait-status">Aguardando jogadores (1/4)</div>
+  <div class="players-list" id="quickwait-players"></div>
+  <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
+</div>
+
 <!-- TELA AGUARDAR (jogador não-host) -->
 <div class="screen" id="screen-wait">
   <div style="font-size:4rem">⛵</div>
@@ -363,6 +398,27 @@
   <div class="label">A regata começa em</div>
   <div class="big-count" id="countdown-num">3</div>
   <div style="font-size:2rem">🚣🌊</div>
+</div>
+
+<!-- TELA COMO JOGAR -->
+<div class="screen" id="screen-tutorial" style="align-items:center;text-align:center;gap:1.2rem">
+  <div class="game-title" style="font-size:2rem">Como Jogar</div>
+  <div style="font-size:3rem">🚣</div>
+  <div style="max-width:340px;display:flex;flex-direction:column;gap:1rem">
+    <div class="status-msg" style="font-size:0.95rem;color:var(--sand)">
+      Para remar, toque nos botões <b style="color:var(--foam)">ESQUERDA</b> e <b style="color:var(--foam)">DIREITA</b> alternadamente, um de cada vez.
+    </div>
+    <div class="status-msg" style="font-size:0.95rem;color:var(--sand)">
+      Ex: esquerda → direita → esquerda → direita...
+    </div>
+    <div class="status-msg" style="font-size:0.85rem;color:var(--coral)">
+      ⚠️ Tocar o mesmo lado duas vezes seguidas <b>não conta</b> como remada — o botão pisca vermelho e você precisa alternar antes de continuar.
+    </div>
+    <div class="status-msg" style="font-size:0.95rem;color:var(--sand)">
+      Quem completar todas as remadas primeiro vence a regata! 🏆
+    </div>
+  </div>
+  <button class="btn primary" onclick="showScreen('screen-home')">Entendi 🚤</button>
 </div>
 
 <!-- TELA DO JOGO -->
@@ -441,6 +497,8 @@ let selectedDist = 50;
 let lastOar = null; // para forçar alternância
 let gameListener = null;
 let raceStarted = false;
+let isPublicRoom = false;
+let publicStarting = false;
 
 const BOATS = ['🚣', '⛵', '🛶', '🚤'];
 const COLORS = ['var(--boat1)', 'var(--boat2)', 'var(--boat3)', 'var(--boat4)'];
@@ -459,6 +517,7 @@ function showScreen(id) {
 
 window.showCreate = () => showScreen('screen-create');
 window.showJoin = () => showScreen('screen-join');
+window.showQuickplay = () => showScreen('screen-quickplay');
 
 window.selectDist = (el, d) => {
   document.querySelectorAll('.dist-opt').forEach(b => b.classList.remove('active-dist'));
@@ -482,6 +541,7 @@ window.createRoom = async () => {
   myRoom = code;
   isHost = true;
   myIndex = 0;
+  isPublicRoom = false;
 
   const roomData = {
     host: myId,
@@ -542,6 +602,7 @@ window.joinRoom = async () => {
   myRoom = code;
   isHost = false;
   myIndex = count;
+  isPublicRoom = false;
 
   const playerData = { name, index: count, strokes: 0, finished: false, finishTime: null };
 
@@ -556,6 +617,79 @@ window.joinRoom = async () => {
   document.getElementById('hdr-code').textContent = code;
   showScreen('screen-wait');
   listenRoom(code);
+};
+
+// ──────────────────────────────
+// JOGAR COM DESCONHECIDOS (MATCHMAKING)
+// ──────────────────────────────
+window.quickPlay = async () => {
+  const name = document.getElementById('quick-name').value.trim();
+  if (!name) { alert('Digite seu nome!'); return; }
+
+  isPublicRoom = true;
+  publicStarting = false;
+
+  if (useLocal) {
+    const openCode = window._publicMatchCode;
+    const openRoom = openCode ? (window._localRooms || {})[openCode] : null;
+    const openCount = openRoom ? Object.keys(openRoom.players || {}).length : 0;
+
+    if (openRoom && openRoom.status === 'lobby' && openCount < 4) {
+      myRoom = openCode; isHost = false; myIndex = openCount;
+      openRoom.players[myId] = { name, index: openCount, strokes: 0, finished: false, finishTime: null };
+      localState = openRoom;
+      if (openCount + 1 >= 4) window._publicMatchCode = null;
+    } else {
+      const newCode = genCode();
+      myRoom = newCode; isHost = true; myIndex = 0;
+      const roomData = {
+        host: myId, code: newCode, dist: 50, status: 'lobby', created: Date.now(), public: true,
+        players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null } }
+      };
+      window._localRooms = window._localRooms || {};
+      window._localRooms[newCode] = roomData;
+      localState = roomData;
+      window._publicMatchCode = newCode;
+    }
+  } else {
+    try {
+      const matchSnap = await get(ref(db, 'matchmaking/public'));
+      const openCode = matchSnap.val();
+      let openRoom = null;
+      if (openCode) {
+        const snap = await get(ref(db, `rooms/${openCode}`));
+        openRoom = snap.val();
+      }
+      const openCount = openRoom ? Object.keys(openRoom.players || {}).length : 0;
+
+      if (openRoom && openRoom.status === 'lobby' && openCount < 4) {
+        myRoom = openCode; isHost = false; myIndex = openCount;
+        await update(ref(db, `rooms/${openCode}/players/${myId}`),
+          { name, index: openCount, strokes: 0, finished: false, finishTime: null });
+        if (openCount + 1 >= 4) {
+          await set(ref(db, 'matchmaking/public'), null);
+        }
+      } else {
+        const newCode = genCode();
+        myRoom = newCode; isHost = true; myIndex = 0;
+        const roomData = {
+          host: myId, code: newCode, dist: 50, status: 'lobby', created: Date.now(), public: true,
+          players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null } }
+        };
+        await set(ref(db, `rooms/${newCode}`), roomData);
+        await set(ref(db, 'matchmaking/public'), newCode);
+      }
+    } catch (e) {
+      useLocal = true;
+      isPublicRoom = false;
+      window.quickPlay();
+      return;
+    }
+  }
+
+  document.getElementById('hdr-code').textContent = myRoom;
+  showScreen('screen-quickwait');
+  listenRoom(myRoom);
 };
 
 // ──────────────────────────────
@@ -587,7 +721,16 @@ function handleRoomUpdate(data) {
   const startBtn = document.getElementById('start-btn');
   const lobbyStatus = document.getElementById('lobby-status');
 
-  if (data.status === 'lobby') {
+  if (data.status === 'lobby' && data.public) {
+    // Sala de "jogar com desconhecidos": sem botão, início automático ao completar 4
+    renderQuickwaitPlayers(pList);
+    const qStatus = document.getElementById('quickwait-status');
+    if (qStatus) qStatus.textContent = `Aguardando jogadores (${count}/4)`;
+    if (isHost && count >= 4 && !publicStarting) {
+      publicStarting = true;
+      startRace();
+    }
+  } else if (data.status === 'lobby') {
     // Atualiza lobby
     renderLobbyPlayers(pList);
     renderWaitPlayers(pList);
@@ -610,6 +753,7 @@ function handleRoomUpdate(data) {
 
   if (data.status === 'racing' && !raceStarted) {
     raceStarted = true;
+    lastOar = null;
     renderRace(data, pList);
     showScreen('screen-game');
     document.getElementById('hdr-dist').textContent = `🏁 ${data.dist} remadas`;
@@ -650,12 +794,22 @@ async function updateRoom(data) {
 // ──────────────────────────────
 // REMAR
 // ──────────────────────────────
-let oarToggle = false; // false = esq, true = dir
 window.rowOar = async (event, side) => {
   if (!raceStarted) return;
 
-  // Efeito ripple
   const btn = event.currentTarget;
+
+  // Exige alternância: mesmo lado duas vezes seguidas não conta
+  if (lastOar === side) {
+    btn.classList.remove('oar-error');
+    void btn.offsetWidth; // reinicia a animação se clicado rápido
+    btn.classList.add('oar-error');
+    setTimeout(() => btn.classList.remove('oar-error'), 300);
+    return;
+  }
+  lastOar = side;
+
+  // Efeito ripple
   const r = document.createElement('span');
   r.className = 'ripple';
   const rect = btn.getBoundingClientRect();
@@ -828,6 +982,21 @@ function renderLobbyPlayers(pList) {
   });
 }
 
+function renderQuickwaitPlayers(pList) {
+  const container = document.getElementById('quickwait-players');
+  if (!container) return;
+  container.innerHTML = '';
+  pList.forEach(([id, p]) => {
+    const el = document.createElement('div');
+    el.className = 'player-item';
+    el.innerHTML = `
+      <div class="player-boat" style="background:${COLORS[p.index]}22;color:${COLORS[p.index]}">${BOATS[p.index]}</div>
+      <div class="player-name">${p.name}</div>
+    `;
+    container.appendChild(el);
+  });
+}
+
 function renderWaitPlayers(pList) {
   const container = document.getElementById('wait-players');
   if (!container) return;
@@ -853,10 +1022,17 @@ window.leaveRoom = () => {
     gameListener = null;
   }
   if (isHost && myRoom) {
+    if (isPublicRoom) {
+      if (useLocal) { if (window._publicMatchCode === myRoom) window._publicMatchCode = null; }
+      else { get(ref(db, 'matchmaking/public')).then(snap => {
+        if (snap.val() === myRoom) set(ref(db, 'matchmaking/public'), null);
+      }).catch(()=>{}); }
+    }
     if (useLocal) { delete (window._localRooms || {})[myRoom]; localState = null; }
     else { try { remove(ref(db, `rooms/${myRoom}`)); } catch(e){} }
   }
   myRoom = null; isHost = false; raceStarted = false;
+  isPublicRoom = false; publicStarting = false;
   showScreen('screen-home');
 };
 
