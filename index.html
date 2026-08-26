@@ -514,6 +514,7 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
+window.showScreen = showScreen;
 
 window.showCreate = () => showScreen('screen-create');
 window.showJoin = () => showScreen('screen-join');
@@ -653,7 +654,7 @@ window.quickPlay = async () => {
     }
   } else {
     try {
-      const matchSnap = await get(ref(db, 'matchmaking/public'));
+      const matchSnap = await get(ref(db, 'rooms/_matchmaking/public'));
       const openCode = matchSnap.val();
       let openRoom = null;
       if (openCode) {
@@ -667,7 +668,7 @@ window.quickPlay = async () => {
         await update(ref(db, `rooms/${openCode}/players/${myId}`),
           { name, index: openCount, strokes: 0, finished: false, finishTime: null });
         if (openCount + 1 >= 4) {
-          await set(ref(db, 'matchmaking/public'), null);
+          await set(ref(db, 'rooms/_matchmaking/public'), null);
         }
       } else {
         const newCode = genCode();
@@ -677,9 +678,10 @@ window.quickPlay = async () => {
           players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null } }
         };
         await set(ref(db, `rooms/${newCode}`), roomData);
-        await set(ref(db, 'matchmaking/public'), newCode);
+        await set(ref(db, 'rooms/_matchmaking/public'), newCode);
       }
     } catch (e) {
+      console.error('Erro no matchmaking, caindo para modo local:', e);
       useLocal = true;
       isPublicRoom = false;
       window.quickPlay();
@@ -1024,8 +1026,8 @@ window.leaveRoom = () => {
   if (isHost && myRoom) {
     if (isPublicRoom) {
       if (useLocal) { if (window._publicMatchCode === myRoom) window._publicMatchCode = null; }
-      else { get(ref(db, 'matchmaking/public')).then(snap => {
-        if (snap.val() === myRoom) set(ref(db, 'matchmaking/public'), null);
+      else { get(ref(db, 'rooms/_matchmaking/public')).then(snap => {
+        if (snap.val() === myRoom) set(ref(db, 'rooms/_matchmaking/public'), null);
       }).catch(()=>{}); }
     }
     if (useLocal) { delete (window._localRooms || {})[myRoom]; localState = null; }
