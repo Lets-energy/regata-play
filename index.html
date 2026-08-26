@@ -157,6 +157,11 @@
   .lane-info { flex-shrink: 0; width: 60px; }
   .lane-name { font-size: 0.75rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .lane-laps { font-size: 0.65rem; font-family: 'Space Mono'; color: var(--silver); }
+  .lane-place {
+    display: none; margin-top: 2px; font-size: 0.65rem; font-family: 'Space Mono'; font-weight: 700;
+    color: var(--sun);
+  }
+  .lane.lane-finished .lane-bar { opacity: 0.85; }
 
   .lane-bar { flex: 1; height: 28px; background: rgba(0,0,0,0.3); border-radius: 6px; position: relative; overflow: visible; }
   .lane-progress {
@@ -276,6 +281,16 @@
     60% { transform: translateX(4px); }
   }
 
+  /* ── RANKING ── */
+  .rank-item {
+    display: flex; align-items: center; gap: 1rem;
+    background: rgba(255,255,255,0.05); border-radius: 12px; padding: 0.75rem 1rem;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .rank-pos { font-weight: 800; font-size: 1.1rem; width: 28px; flex-shrink: 0; }
+  .rank-name { flex: 1; font-weight: 700; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-time { font-family: 'Space Mono'; font-weight: 700; color: var(--sun); font-size: 0.9rem; }
+
   .status-msg {
     font-family: 'Space Mono'; font-size: 0.8rem; color: var(--silver); text-align: center;
   }
@@ -306,6 +321,7 @@
   <button class="btn primary" onclick="showCreate()">🏁 Criar Sala</button>
   <button class="btn" onclick="showJoin()">🔗 Entrar na Sala</button>
   <button class="btn" onclick="showQuickplay()">🎲 Jogar com Desconhecidos</button>
+  <button class="btn sm" onclick="showRanking()" style="border-color:var(--sun);color:var(--sun)">🏆 Ranking</button>
   <button class="btn sm" onclick="showScreen('screen-tutorial')" style="border-color:var(--silver);color:var(--silver)">❓ Como Jogar</button>
 </div>
 
@@ -384,6 +400,21 @@
   <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
 </div>
 
+<!-- TELA RANKING -->
+<div class="screen" id="screen-ranking" style="align-items:center;gap:1.2rem">
+  <div class="game-title" style="font-size:2rem">🏆 Ranking</div>
+  <div class="game-subtitle">tempos mais rápidos</div>
+  <div style="display:flex;gap:0.5rem">
+    <button class="btn sm rank-tab active-dist" data-dist="50" onclick="selectRankTab(this,50)">50</button>
+    <button class="btn sm rank-tab" data-dist="100" onclick="selectRankTab(this,100)">100</button>
+    <button class="btn sm rank-tab" data-dist="200" onclick="selectRankTab(this,200)">200</button>
+  </div>
+  <div class="players-list" id="ranking-list" style="width:100%;max-width:400px">
+    <div class="status-msg">Carregando...</div>
+  </div>
+  <button class="btn" onclick="showScreen('screen-home')">← Voltar</button>
+</div>
+
 <!-- TELA COMO JOGAR -->
 <div class="screen" id="screen-tutorial" style="align-items:center;text-align:center;gap:1.2rem">
   <div class="game-title" style="font-size:2rem">Como Jogar</div>
@@ -457,7 +488,7 @@
 <!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, off, remove, serverTimestamp }
+import { getDatabase, ref, set, get, update, onValue, off, remove, serverTimestamp, push }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 
@@ -499,6 +530,10 @@ let gameListener = null;
 let raceStarted = false;
 let isPublicRoom = false;
 let publicStarting = false;
+let myFinished = false;
+let currentDist = 50;
+let myName = '';
+let raceStartTime = 0;
 
 const BOATS = ['🚣', '⛵', '🛶', '🚤'];
 const COLORS = ['var(--boat1)', 'var(--boat2)', 'var(--boat3)', 'var(--boat4)'];
@@ -537,6 +572,7 @@ document.head.appendChild(style);
 window.createRoom = async () => {
   const name = document.getElementById('host-name').value.trim();
   if (!name) { alert('Digite seu nome!'); return; }
+  myName = name;
 
   const code = genCode();
   myRoom = code;
@@ -583,6 +619,7 @@ window.joinRoom = async () => {
   const name = document.getElementById('join-name').value.trim();
   if (!code || code.length !== 4) { alert('Código inválido!'); return; }
   if (!name) { alert('Digite seu nome!'); return; }
+  myName = name;
 
   let roomData;
   if (useLocal) {
@@ -633,6 +670,7 @@ window.joinRoom = async () => {
 window.quickPlay = async () => {
   const name = document.getElementById('quick-name').value.trim();
   if (!name) { alert('Digite seu nome!'); return; }
+  myName = name;
 
   isPublicRoom = true;
   publicStarting = false;
@@ -763,6 +801,11 @@ function handleRoomUpdate(data) {
   if (data.status === 'racing' && !raceStarted) {
     raceStarted = true;
     lastOar = null;
+    myFinished = false;
+    currentDist = data.dist || 50;
+    raceStartTime = data.startTime || Date.now();
+    document.getElementById('oar-left')?.classList.remove('disabled');
+    document.getElementById('oar-right')?.classList.remove('disabled');
     renderRace(data, pList);
     showScreen('screen-game');
     document.getElementById('hdr-dist').textContent = `🏁 ${data.dist} remadas`;
@@ -804,7 +847,7 @@ async function updateRoom(data) {
 // REMAR
 // ──────────────────────────────
 window.rowOar = async (event, side) => {
-  if (!raceStarted) return;
+  if (!raceStarted || myFinished) return;
 
   const btn = event.currentTarget;
 
@@ -837,9 +880,23 @@ window.rowOar = async (event, side) => {
     currentStrokes = snap.val() || 0;
   }
 
+  // Já tinha terminado (ex: outra aba/corrida concorrente) — não conta mais
+  if (currentStrokes >= currentDist) {
+    myFinished = true;
+    document.getElementById('oar-left')?.classList.add('disabled');
+    document.getElementById('oar-right')?.classList.add('disabled');
+    return;
+  }
+
   const newStrokes = currentStrokes + 1;
-  const dist = useLocal ? localState.dist : 50;
+  const dist = currentDist;
   const isFinished = newStrokes >= dist;
+
+  if (isFinished) {
+    myFinished = true;
+    document.getElementById('oar-left')?.classList.add('disabled');
+    document.getElementById('oar-right')?.classList.add('disabled');
+  }
 
   const update_data = {
     strokes: newStrokes,
@@ -854,8 +911,70 @@ window.rowOar = async (event, side) => {
   } else {
     await update(ref(db, `rooms/${myRoom}/players/${myId}`), update_data);
     if (isHost || isFinished) checkAllFinished();
+    if (isFinished) submitRankingTime(dist, Date.now() - raceStartTime);
   }
 };
+
+// ──────────────────────────────
+// RANKING GLOBAL
+// ──────────────────────────────
+async function submitRankingTime(dist, durationMs) {
+  if (!myName || durationMs <= 0) return;
+  try {
+    const newRef = push(ref(db, `rankings/${dist}`));
+    await set(newRef, { name: myName, duration: durationMs, ts: Date.now() });
+  } catch (e) {
+    console.error('Erro ao salvar tempo no ranking:', e);
+  }
+}
+
+window.showRanking = () => {
+  showScreen('screen-ranking');
+  loadRanking(50);
+};
+
+window.selectRankTab = (el, dist) => {
+  document.querySelectorAll('.rank-tab').forEach(b => b.classList.remove('active-dist'));
+  el.classList.add('active-dist');
+  loadRanking(dist);
+};
+
+async function loadRanking(dist) {
+  const list = document.getElementById('ranking-list');
+  list.innerHTML = '<div class="status-msg">Carregando...</div>';
+
+  if (useLocal || !db) {
+    list.innerHTML = '<div class="status-msg">Ranking indisponível no modo local (sem conexão).</div>';
+    return;
+  }
+
+  let entries = [];
+  try {
+    const snap = await get(ref(db, `rankings/${dist}`));
+    const obj = snap.val() || {};
+    entries = Object.values(obj)
+      .sort((a, b) => a.duration - b.duration)
+      .slice(0, 10);
+  } catch (e) {
+    console.error('Erro ao carregar ranking:', e);
+    list.innerHTML = '<div class="status-msg">Erro ao carregar ranking.</div>';
+    return;
+  }
+
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="status-msg">Ninguém completou essa distância ainda. Seja o primeiro! 🚣</div>';
+    return;
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  list.innerHTML = entries.map((e, i) => `
+    <div class="rank-item">
+      <div class="rank-pos">${medals[i] || (i + 1) + 'º'}</div>
+      <div class="rank-name">${e.name}</div>
+      <div class="rank-time">${(e.duration / 1000).toFixed(1)}s</div>
+    </div>
+  `).join('');
+}
 
 async function checkAllFinished() {
   let data;
@@ -889,6 +1008,7 @@ function renderRace(data, pList) {
       <div class="lane-info">
         <div class="lane-name ${isMe ? 'my-label' : ''}">${isMe ? '▶ ' : ''}${p.name}</div>
         <div class="lane-laps" id="strokes-${id}">0/${data.dist}</div>
+        <div class="lane-place" id="place-${id}"></div>
       </div>
       <div class="lane-bar" id="bar-${id}">
         <div class="lane-progress" id="prog-${id}" style="background:${COLORS[p.index]};width:0%"></div>
@@ -901,15 +1021,34 @@ function renderRace(data, pList) {
 }
 
 function updateRaceLanes(data, pList) {
+  // Calcula a ordem de chegada de quem já terminou
+  const medals = ['🥇 1º', '🥈 2º', '🥉 3º', '4º'];
+  const finishedOrder = pList
+    .filter(([id, p]) => p.finished)
+    .sort((a, b) => (a[1].finishTime || Infinity) - (b[1].finishTime || Infinity));
+
   pList.forEach(([id, p]) => {
     const dist = data.dist || 50;
+    const shownStrokes = Math.min(p.strokes, dist);
     const pct = Math.min((p.strokes / dist) * 100, 100);
     const prog = document.getElementById('prog-' + id);
     const boat = document.getElementById('boat-' + id);
     const strokesEl = document.getElementById('strokes-' + id);
+    const lane = document.getElementById('lane-' + id);
+    const placeEl = document.getElementById('place-' + id);
+
     if (prog) prog.style.width = pct + '%';
     if (boat) boat.style.left = `calc(${pct}% - 1rem)`;
-    if (strokesEl) strokesEl.textContent = `${p.strokes}/${dist}`;
+    if (strokesEl) strokesEl.textContent = `${shownStrokes}/${dist}`;
+
+    if (p.finished) {
+      if (lane) lane.classList.add('lane-finished');
+      if (placeEl) {
+        const rank = finishedOrder.findIndex(([fid]) => fid === id);
+        placeEl.textContent = medals[rank] || `${rank + 1}º`;
+        placeEl.style.display = 'block';
+      }
+    }
   });
 }
 
