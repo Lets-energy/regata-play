@@ -539,6 +539,11 @@ let latestRoomData = null;
 let inactivityTimer = null;
 const INACTIVITY_TIMEOUT_MS = 20000; // 20s sem remar = considerado inativo
 
+let botFillTimer = null;
+let botRowTimers = {};
+const BOT_FILL_INTERVAL_MS = 8000; // preenche 1 vaga a cada 8s se faltar gente
+const BOT_NAMES = ['🤖 Bot Marujo', '🤖 Bot Timoneiro', '🤖 Bot Grumete', '🤖 Bot Capitão'];
+
 const BOATS = ['🚣', '⛵', '🛶', '🚤'];
 const COLORS = ['var(--boat1)', 'var(--boat2)', 'var(--boat3)', 'var(--boat4)'];
 const BOAT_NAMES = ['barco vermelho', 'barco dourado', 'barco verde', 'barco roxo'];
@@ -697,12 +702,13 @@ async function enterQuickplay(name) {
       myRoom = newCode; isHost = true; myIndex = 0;
       const roomData = {
         host: myId, code: newCode, dist: 50, status: 'lobby', created: Date.now(), public: true,
-        players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null } }
+        players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() } }
       };
       window._localRooms = window._localRooms || {};
       window._localRooms[newCode] = roomData;
       localState = roomData;
       window._publicMatchCode = newCode;
+      scheduleBotFill(newCode);
     }
   } else {
     try {
@@ -718,7 +724,7 @@ async function enterQuickplay(name) {
       if (openRoom && openRoom.status === 'lobby' && openCount < 4) {
         myRoom = openCode; isHost = false; myIndex = openCount;
         await update(ref(db, `rooms/${openCode}/players/${myId}`),
-          { name, index: openCount, strokes: 0, finished: false, finishTime: null });
+          { name, index: openCount, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() });
         if (openCount + 1 >= 4) {
           await set(ref(db, 'rooms/_matchmaking/public'), null);
         }
@@ -727,10 +733,11 @@ async function enterQuickplay(name) {
         myRoom = newCode; isHost = true; myIndex = 0;
         const roomData = {
           host: myId, code: newCode, dist: 50, status: 'lobby', created: Date.now(), public: true,
-          players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null } }
+          players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() } }
         };
         await set(ref(db, `rooms/${newCode}`), roomData);
         await set(ref(db, 'rooms/_matchmaking/public'), newCode);
+        scheduleBotFill(newCode);
       }
     } catch (e) {
       console.error('Erro no matchmaking, caindo para modo local:', e);
@@ -763,6 +770,111 @@ function listenRoom(code) {
     if (!data) { leaveRoom(); return; }
     handleRoomUpdate(data);
   });
+}
+
+// ──────────────────────────────
+// BOTS (preenche sala pública se demorar gente real)
+// ──────────────────────────────
+function scheduleBotFill(code) {
+  if (botFillTimer) clearInterval(botFillTimer);
+  botFillTimer = setInterval(() => tryAddBot(code), BOT_FILL_INTERVAL_MS);
+}
+
+function clearAllBotTimers() {
+  if (botFillTimer) { clearInterval(botFillTimer); botFillTimer = null; }
+  Object.values(botRowTimers).forEach(id => clearTimeout(id));
+  botRowTimers = {};
+}
+
+async function tryAddBot(code) {
+  // Só o anfitrião que criou a sala mantém esse timer; se saiu da sala, para.
+  if (!isHost || myRoom !== code) { clearAllBotTimers(); return; }
+
+  const data = useLocal ? localState : latestRoomData;
+  if (!data || data.status !== 'lobby' || !data.public) {
+    if (botFillTimer) { clearInterval(botFillTimer); botFillTimer = null; }
+    return;
+  }
+
+  const players = data.players || {};
+  const count = Object.keys(players).length;
+  if (count >= 4) {
+    if (botFillTimer) { clearInterval(botFillTimer); botFillTimer = null; }
+    return;
+  }
+
+  const botId = 'bot' + Math.random().toString(36).slice(2, 8);
+  const botName = BOT_NAMES[count % BOT_NAMES.length];
+  const paceMs = 280 + Math.floor(Math.random() * 570); // ritmo aleatório por bot
+  const botData = {
+    name: botName, index: count, strokes: 0, finished: false,
+    finishTime: null, isBot: true, lastMove: Date.now()
+  };
+
+  if (useLocal) {
+    localState.players[botId] = botData;
+  } else {
+    try {
+      await update(ref(db, `rooms/${code}/players/${botId}`), botData);
+    } catch (e) {
+      console.error('Erro ao adicionar bot:', e);
+      return;
+    }
+  }
+
+  startBotRowing(code, botId, data.dist || 50, paceMs);
+
+  if (count + 1 >= 4 && botFillTimer) {
+    clearInterval(botFillTimer);
+    botFillTimer = null;
+  }
+}
+
+function startBotRowing(code, botId, dist, paceMs) {
+  function scheduleNext() {
+    const delay = Math.max(120, paceMs + Math.floor(Math.random() * 100 - 50));
+    botRowTimers[botId] = setTimeout(tick, delay);
+  }
+
+  async function tick() {
+    if (!isHost || myRoom !== code) { delete botRowTimers[botId]; return; }
+
+    const data = useLocal ? localState : latestRoomData;
+    if (!data || data.status === 'finished') { delete botRowTimers[botId]; return; }
+
+    if (data.status !== 'racing') {
+      // ainda em lobby/countdown: só espera a corrida começar
+      scheduleNext();
+      return;
+    }
+
+    const p = data.players && data.players[botId];
+    if (!p || p.finished) { delete botRowTimers[botId]; return; }
+
+    const newStrokes = (p.strokes || 0) + 1;
+    const isFinished = newStrokes >= dist;
+    const updateData = {
+      strokes: newStrokes, finished: isFinished,
+      finishTime: isFinished ? Date.now() : null, lastMove: Date.now()
+    };
+
+    if (useLocal) {
+      Object.assign(localState.players[botId], updateData);
+      checkAllFinished();
+    } else {
+      try {
+        await update(ref(db, `rooms/${code}/players/${botId}`), updateData);
+      } catch (e) {
+        console.error('Erro ao simular remada do bot:', e);
+      }
+      checkAllFinished();
+    }
+
+    if (isFinished) delete botRowTimers[botId];
+    else scheduleNext();
+  }
+
+  scheduleNext();
 }
 
 function handleRoomUpdate(data) {
@@ -818,6 +930,9 @@ function handleRoomUpdate(data) {
     showScreen('screen-game');
     document.getElementById('hdr-dist').textContent = `🏁 ${data.dist} remadas`;
 
+    // Corrida já começou: não precisa mais tentar preencher com bots
+    if (botFillTimer) { clearInterval(botFillTimer); botFillTimer = null; }
+
     // Anfitrião passa a checar jogadores inativos periodicamente
     if (isHost) {
       if (inactivityTimer) clearInterval(inactivityTimer);
@@ -831,6 +946,7 @@ function handleRoomUpdate(data) {
 
   if (data.status === 'finished') {
     if (inactivityTimer) { clearInterval(inactivityTimer); inactivityTimer = null; }
+    clearAllBotTimers();
     showPodium(data, pList);
   }
 }
@@ -1220,6 +1336,7 @@ function renderWaitPlayers(pList) {
 // ──────────────────────────────
 window.leaveRoom = () => {
   if (inactivityTimer) { clearInterval(inactivityTimer); inactivityTimer = null; }
+  clearAllBotTimers();
   if (gameListener) {
     if (useLocal) clearInterval(gameListener);
     else { try { off(ref(db, `rooms/${myRoom}`), 'value', gameListener); } catch(e){} }
