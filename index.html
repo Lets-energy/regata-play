@@ -1013,6 +1013,7 @@ window.rowOar = async (event, side) => {
   if (!raceStarted || myFinished) return;
 
   const btn = event.currentTarget;
+  const previousOar = lastOar;
 
   // Exige alternância: mesmo lado duas vezes seguidas não conta
   if (lastOar === side) {
@@ -1036,11 +1037,17 @@ window.rowOar = async (event, side) => {
 
   // Incrementa stroke do jogador
   let currentStrokes = 0;
-  if (useLocal) {
-    currentStrokes = (localState.players[myId]?.strokes || 0);
-  } else {
-    const snap = await get(ref(db, `rooms/${myRoom}/players/${myId}/strokes`));
-    currentStrokes = snap.val() || 0;
+  try {
+    if (useLocal) {
+      currentStrokes = (localState.players[myId]?.strokes || 0);
+    } else {
+      const snap = await get(ref(db, `rooms/${myRoom}/players/${myId}/strokes`));
+      currentStrokes = snap.val() || 0;
+    }
+  } catch (e) {
+    console.error('Erro ao ler remadas (conexão instável?). Tente remar de novo:', e);
+    lastOar = previousOar; // desfaz a alternância pra poder tentar de novo
+    return;
   }
 
   // Já tinha terminado (ex: outra aba/corrida concorrente) — não conta mais
@@ -1055,25 +1062,37 @@ window.rowOar = async (event, side) => {
   const dist = currentDist;
   const isFinished = newStrokes >= dist;
 
-  if (isFinished) {
-    myFinished = true;
-    document.getElementById('oar-left')?.classList.add('disabled');
-    document.getElementById('oar-right')?.classList.add('disabled');
-  }
-
   const update_data = {
     strokes: newStrokes,
     finished: isFinished,
     finishTime: isFinished ? Date.now() : null,
-    lastMove: Date.now()
+    lastMove: Date.now(),
+    dnf: false
   };
 
   if (useLocal) {
     Object.assign(localState.players[myId], update_data);
-    // Verificar se todos terminaram
+    // Só marca como terminado no seu aparelho DEPOIS de confirmar a gravação
+    if (isFinished) {
+      myFinished = true;
+      document.getElementById('oar-left')?.classList.add('disabled');
+      document.getElementById('oar-right')?.classList.add('disabled');
+    }
     checkAllFinished();
   } else {
-    await update(ref(db, `rooms/${myRoom}/players/${myId}`), update_data);
+    try {
+      await update(ref(db, `rooms/${myRoom}/players/${myId}`), update_data);
+    } catch (e) {
+      console.error('Erro ao gravar remada (conexão instável?). Tente remar de novo:', e);
+      lastOar = previousOar; // desfaz a alternância pra poder tentar de novo
+      return;
+    }
+    // Só marca como terminado no seu aparelho DEPOIS de confirmar a gravação
+    if (isFinished) {
+      myFinished = true;
+      document.getElementById('oar-left')?.classList.add('disabled');
+      document.getElementById('oar-right')?.classList.add('disabled');
+    }
     if (isHost || isFinished) checkAllFinished();
     if (isFinished) submitRankingTime(dist, Date.now() - raceStartTime);
   }
