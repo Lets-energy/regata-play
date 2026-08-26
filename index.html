@@ -238,7 +238,7 @@
   /* ── TELA ENTRAR ── */
   #screen-join { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
 
-  /* ── TELA JOGAR COM DESCONHECIDOS ── */
+  /* ── TELA JOGAR COM DESCONHECIDOS / TUTORIAL ── */
   #screen-quickplay { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
   #screen-quickwait { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
 
@@ -384,22 +384,6 @@
   <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
 </div>
 
-<!-- TELA AGUARDAR (jogador não-host) -->
-<div class="screen" id="screen-wait">
-  <div style="font-size:4rem">⛵</div>
-  <div style="font-size:1.5rem;font-weight:800">Pronto para remar!</div>
-  <div class="status-msg pulse" id="wait-status">Aguardando o anfitrião iniciar...</div>
-  <div class="players-list" id="wait-players"></div>
-  <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
-</div>
-
-<!-- TELA DE CONTAGEM REGRESSIVA -->
-<div class="screen" id="screen-countdown" style="align-items:center;justify-content:center;gap:1rem;text-align:center">
-  <div class="label">A regata começa em</div>
-  <div class="big-count" id="countdown-num">3</div>
-  <div style="font-size:2rem">🚣🌊</div>
-</div>
-
 <!-- TELA COMO JOGAR -->
 <div class="screen" id="screen-tutorial" style="align-items:center;text-align:center;gap:1.2rem">
   <div class="game-title" style="font-size:2rem">Como Jogar</div>
@@ -419,6 +403,22 @@
     </div>
   </div>
   <button class="btn primary" onclick="showScreen('screen-home')">Entendi 🚤</button>
+</div>
+
+<!-- TELA AGUARDAR (jogador não-host) -->
+<div class="screen" id="screen-wait">
+  <div style="font-size:4rem">⛵</div>
+  <div style="font-size:1.5rem;font-weight:800">Pronto para remar!</div>
+  <div class="status-msg pulse" id="wait-status">Aguardando o anfitrião iniciar...</div>
+  <div class="players-list" id="wait-players"></div>
+  <button class="btn danger sm" onclick="leaveRoom()">Sair</button>
+</div>
+
+<!-- TELA DE CONTAGEM REGRESSIVA -->
+<div class="screen" id="screen-countdown" style="align-items:center;justify-content:center;gap:1rem;text-align:center">
+  <div class="label">A regata começa em</div>
+  <div class="big-count" id="countdown-num">3</div>
+  <div style="font-size:2rem">🚣🌊</div>
 </div>
 
 <!-- TELA DO JOGO -->
@@ -563,6 +563,7 @@ window.createRoom = async () => {
     try {
       await set(ref(db, `rooms/${code}`), roomData);
     } catch(e) {
+      console.error('Erro ao criar sala no Firebase (verifique as regras do Realtime Database):', e);
       useLocal = true;
       localState = roomData;
     }
@@ -590,7 +591,10 @@ window.joinRoom = async () => {
     try {
       const snap = await get(ref(db, `rooms/${code}`));
       roomData = snap.val();
-    } catch(e) { useLocal = true; }
+    } catch(e) {
+      console.error('Erro ao buscar sala no Firebase (verifique as regras do Realtime Database):', e);
+      useLocal = true;
+    }
   }
 
   if (!roomData) { alert('Sala não encontrada!'); return; }
@@ -612,7 +616,10 @@ window.joinRoom = async () => {
   } else {
     try {
       await update(ref(db, `rooms/${code}/players/${myId}`), playerData);
-    } catch(e) { useLocal = true; }
+    } catch(e) {
+      console.error('Erro ao entrar na sala no Firebase (verifique as regras do Realtime Database):', e);
+      useLocal = true;
+    }
   }
 
   document.getElementById('hdr-code').textContent = code;
