@@ -671,7 +671,10 @@ window.quickPlay = async () => {
   const name = document.getElementById('quick-name').value.trim();
   if (!name) { alert('Digite seu nome!'); return; }
   myName = name;
+  await enterQuickplay(name);
+};
 
+async function enterQuickplay(name) {
   isPublicRoom = true;
   publicStarting = false;
 
@@ -729,7 +732,7 @@ window.quickPlay = async () => {
       console.error('Erro no matchmaking, caindo para modo local:', e);
       useLocal = true;
       isPublicRoom = false;
-      window.quickPlay();
+      await enterQuickplay(name);
       return;
     }
   }
@@ -737,7 +740,7 @@ window.quickPlay = async () => {
   document.getElementById('hdr-code').textContent = myRoom;
   showScreen('screen-quickwait');
   listenRoom(myRoom);
-};
+}
 
 // ──────────────────────────────
 // OUVIR SALA EM TEMPO REAL
@@ -921,7 +924,7 @@ window.rowOar = async (event, side) => {
 async function submitRankingTime(dist, durationMs) {
   if (!myName || durationMs <= 0) return;
   try {
-    const newRef = push(ref(db, `rankings/${dist}`));
+    const newRef = push(ref(db, `rooms/_rankings/${dist}`));
     await set(newRef, { name: myName, duration: durationMs, ts: Date.now() });
   } catch (e) {
     console.error('Erro ao salvar tempo no ranking:', e);
@@ -950,7 +953,7 @@ async function loadRanking(dist) {
 
   let entries = [];
   try {
-    const snap = await get(ref(db, `rankings/${dist}`));
+    const snap = await get(ref(db, `rooms/_rankings/${dist}`));
     const obj = snap.val() || {};
     entries = Object.values(obj)
       .sort((a, b) => a.duration - b.duration)
@@ -1185,6 +1188,31 @@ window.leaveRoom = () => {
 };
 
 window.playAgain = async () => {
+  if (isPublicRoom) {
+    // Salas de "jogar com desconhecidos": não reabre lobby manual,
+    // volta para a busca de partida (pode juntar com outras pessoas)
+    if (gameListener) {
+      if (useLocal) clearInterval(gameListener);
+      else { try { off(ref(db, `rooms/${myRoom}`), 'value', gameListener); } catch(e){} }
+      gameListener = null;
+    }
+    if (isHost && myRoom) {
+      if (useLocal) {
+        if (window._publicMatchCode === myRoom) window._publicMatchCode = null;
+        delete (window._localRooms || {})[myRoom];
+      } else {
+        try {
+          const snap = await get(ref(db, 'rooms/_matchmaking/public'));
+          if (snap.val() === myRoom) await set(ref(db, 'rooms/_matchmaking/public'), null);
+        } catch(e) {}
+        try { await remove(ref(db, `rooms/${myRoom}`)); } catch(e){}
+      }
+    }
+    myRoom = null; isHost = false; myFinished = false; lastOar = null; raceStarted = false;
+    await enterQuickplay(myName);
+    return;
+  }
+
   if (isHost) {
     // Reset
     const data = useLocal ? localState : (await get(ref(db, `rooms/${myRoom}`))).val();
