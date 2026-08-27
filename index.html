@@ -34,15 +34,17 @@
     --boat4: #9b59b6;
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
   body {
     font-family: 'Syne', sans-serif;
     background: var(--ocean);
     color: var(--sand);
     min-height: 100vh;
+    min-height: 100dvh;
     overflow-x: hidden;
     user-select: none;
+    touch-action: manipulation;
   }
 
   /* ── TELA DE CARREGAMENTO ── */
@@ -61,7 +63,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── TELAS PRINCIPAIS ── */
-  .screen { display: none; min-height: 100vh; padding: 1.5rem; flex-direction: column; }
+  .screen { display: none; min-height: 100vh; min-height: 100dvh; padding: 1.5rem; flex-direction: column; }
   .screen.active { display: flex; }
 
   /* ── TELA INICIAL (HOST) ── */
@@ -134,49 +136,49 @@
   #screen-game { padding: 0; gap: 0; justify-content: space-between; }
 
   .game-header {
-    padding: 0.75rem 1rem; background: rgba(0,0,0,0.3);
+    padding: 0.5rem 1rem; background: rgba(0,0,0,0.3);
     display: flex; align-items: center; justify-content: space-between;
     border-bottom: 1px solid rgba(255,255,255,0.1);
   }
-  .game-header .room { font-family: 'Space Mono'; font-size: 0.75rem; color: var(--silver); }
+  .game-header .room { font-family: 'Space Mono'; font-size: 0.7rem; color: var(--silver); }
   .countdown-display {
-    font-family: 'Space Mono'; font-size: 1rem; font-weight: 700; color: var(--sun);
+    font-family: 'Space Mono'; font-size: 0.9rem; font-weight: 700; color: var(--sun);
   }
 
   /* Pista de corrida */
   .race-track {
-    flex: 1; padding: 1rem; display: flex; flex-direction: column;
-    gap: 0.5rem; overflow: hidden;
+    flex: 1; padding: 0.6rem; display: flex; flex-direction: column;
+    gap: 0.35rem; overflow: hidden;
   }
   .lane {
-    flex: 1; display: flex; align-items: center; gap: 0.5rem;
-    background: rgba(255,255,255,0.04); border-radius: 10px;
-    padding: 0.4rem 0.6rem; border: 1px solid rgba(255,255,255,0.07);
-    min-height: 60px;
+    flex: 1; display: flex; align-items: center; gap: 0.4rem;
+    background: rgba(255,255,255,0.04); border-radius: 8px;
+    padding: 0.3rem 0.5rem; border: 1px solid rgba(255,255,255,0.07);
+    min-height: 44px;
   }
-  .lane-info { flex-shrink: 0; width: 60px; }
-  .lane-name { font-size: 0.75rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .lane-laps { font-size: 0.65rem; font-family: 'Space Mono'; color: var(--silver); }
+  .lane-info { flex-shrink: 0; width: 56px; }
+  .lane-name { font-size: 0.68rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lane-laps { font-size: 0.58rem; font-family: 'Space Mono'; color: var(--silver); }
   .lane-place {
-    display: none; margin-top: 2px; font-size: 0.65rem; font-family: 'Space Mono'; font-weight: 700;
+    display: none; margin-top: 1px; font-size: 0.58rem; font-family: 'Space Mono'; font-weight: 700;
     color: var(--sun);
   }
   .lane.lane-finished .lane-bar { opacity: 0.85; }
 
-  .lane-bar { flex: 1; height: 28px; background: rgba(0,0,0,0.3); border-radius: 6px; position: relative; overflow: visible; }
+  .lane-bar { flex: 1; height: 20px; background: rgba(0,0,0,0.3); border-radius: 5px; position: relative; overflow: visible; }
   .lane-progress {
     position: absolute; top: 0; left: 0; height: 100%;
-    border-radius: 6px; transition: width 0.15s ease-out;
+    border-radius: 5px; transition: width 0.15s ease-out;
     min-width: 0%;
   }
   .boat-icon {
     position: absolute; top: 50%; transform: translateY(-50%);
-    font-size: 1.4rem; transition: left 0.15s ease-out;
+    font-size: 1.15rem; transition: left 0.15s ease-out;
     filter: drop-shadow(0 0 4px rgba(0,0,0,0.5));
     pointer-events: none;
   }
   .finish-line {
-    flex-shrink: 0; width: 6px; background: repeating-linear-gradient(
+    flex-shrink: 0; width: 5px; background: repeating-linear-gradient(
       to bottom, white 0, white 4px, black 4px, black 8px
     );
     border-radius: 3px; height: 100%;
@@ -185,15 +187,15 @@
 
   /* Controles de remo */
   .oar-controls {
-    padding: 1rem; display: flex; gap: 0.75rem;
+    padding: 0.7rem; display: flex; gap: 0.6rem;
     border-top: 1px solid rgba(255,255,255,0.1);
   }
   .oar-btn {
-    flex: 1; padding: 1.4rem 0;
-    border-radius: 16px; border: none;
+    flex: 1; padding: 0.9rem 0;
+    border-radius: 14px; border: none;
     font-family: 'Syne', sans-serif; font-weight: 800;
-    font-size: 1.1rem; cursor: pointer;
-    display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+    font-size: 1rem; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
     transition: transform 0.08s, box-shadow 0.08s;
     position: relative; overflow: hidden;
   }
@@ -202,8 +204,8 @@
   .oar-left:active { box-shadow: 0 0 0 #08203a; transform: scale(0.94) translateY(4px); }
   .oar-right { background: var(--wave); color: var(--foam); box-shadow: 0 4px 0 #0a2a4a; }
   .oar-right:active { box-shadow: 0 0 0 #0a2a4a; transform: scale(0.94) translateY(4px); }
-  .oar-icon { font-size: 1.8rem; }
-  .oar-label { font-size: 0.65rem; font-family: 'Space Mono'; letter-spacing: 2px; color: var(--silver); }
+  .oar-icon { font-size: 1.4rem; }
+  .oar-label { font-size: 0.6rem; font-family: 'Space Mono'; letter-spacing: 2px; color: var(--silver); }
 
   /* Meu barco destaque */
   .my-lane { border-color: rgba(93,173,226,0.4) !important; background: rgba(93,173,226,0.06) !important; }
@@ -489,7 +491,7 @@
 <!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, off, remove, serverTimestamp, push }
+import { getDatabase, ref, set, get, update, onValue, off, remove, serverTimestamp, push, runTransaction }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 
@@ -630,43 +632,59 @@ window.joinRoom = async () => {
   if (!name) { alert('Digite seu nome!'); return; }
   myName = name;
 
-  let roomData;
   if (useLocal) {
-    roomData = (window._localRooms || {})[code];
-  } else {
-    try {
-      const snap = await get(ref(db, `rooms/${code}`));
-      roomData = snap.val();
-    } catch(e) {
-      console.error('Erro ao buscar sala no Firebase (verifique as regras do Realtime Database):', e);
-      useLocal = true;
-    }
+    const roomData = (window._localRooms || {})[code];
+    if (!roomData) { alert('Sala não encontrada!'); return; }
+    if (roomData.status !== 'lobby') { alert('Jogo já iniciado!'); return; }
+    const players = roomData.players || {};
+    const count = Object.keys(players).length;
+    if (count >= 4) { alert('Sala cheia! Máx. 4 jogadores.'); return; }
+
+    myRoom = code; isHost = false; myIndex = count; isPublicRoom = false;
+    localState = roomData;
+    localState.players[myId] = { name, index: count, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() };
+
+    document.getElementById('hdr-code').textContent = code;
+    showScreen('screen-wait');
+    listenRoom(code);
+    return;
   }
 
-  if (!roomData) { alert('Sala não encontrada!'); return; }
-  if (roomData.status !== 'lobby') { alert('Jogo já iniciado!'); return; }
+  // Firebase: transação atômica — evita que duas pessoas peguem a mesma vaga
+  // se clicarem "Entrar" ao mesmo tempo.
+  let result;
+  try {
+    result = await runTransaction(ref(db, `rooms/${code}`), (room) => {
+      if (!room) return room; // sala não existe: aborta sem alterar
+      if (room.status !== 'lobby') return; // já iniciado: aborta
+      const players = room.players || {};
+      const count = Object.keys(players).length;
+      if (count >= 4) return; // sala cheia: aborta
+      room.players = players;
+      room.players[myId] = { name, index: count, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() };
+      return room;
+    });
+  } catch (e) {
+    console.error('Erro ao entrar na sala no Firebase (verifique as regras do Realtime Database):', e);
+    useLocal = true;
+    return window.joinRoom();
+  }
 
-  const players = roomData.players || {};
-  const count = Object.keys(players).length;
-  if (count >= 4) { alert('Sala cheia! Máx. 4 jogadores.'); return; }
+  if (!result.committed) {
+    const roomNow = result.snapshot.val();
+    if (!roomNow) { alert('Sala não encontrada!'); return; }
+    if (roomNow.status !== 'lobby') { alert('Jogo já iniciado!'); return; }
+    alert('Sala cheia! Máx. 4 jogadores.');
+    return;
+  }
+
+  const finalRoom = result.snapshot.val();
+  const myData = (finalRoom.players || {})[myId];
 
   myRoom = code;
   isHost = false;
-  myIndex = count;
+  myIndex = myData ? myData.index : 0;
   isPublicRoom = false;
-
-  const playerData = { name, index: count, strokes: 0, finished: false, finishTime: null };
-
-  if (useLocal) {
-    localState.players[myId] = playerData;
-  } else {
-    try {
-      await update(ref(db, `rooms/${code}/players/${myId}`), playerData);
-    } catch(e) {
-      console.error('Erro ao entrar na sala no Firebase (verifique as regras do Realtime Database):', e);
-      useLocal = true;
-    }
-  }
 
   document.getElementById('hdr-code').textContent = code;
   showScreen('screen-wait');
@@ -714,21 +732,35 @@ async function enterQuickplay(name) {
     try {
       const matchSnap = await get(ref(db, 'rooms/_matchmaking/public'));
       const openCode = matchSnap.val();
-      let openRoom = null;
-      if (openCode) {
-        const snap = await get(ref(db, `rooms/${openCode}`));
-        openRoom = snap.val();
-      }
-      const openCount = openRoom ? Object.keys(openRoom.players || {}).length : 0;
+      let joined = false;
 
-      if (openRoom && openRoom.status === 'lobby' && openCount < 4) {
-        myRoom = openCode; isHost = false; myIndex = openCount;
-        await update(ref(db, `rooms/${openCode}/players/${myId}`),
-          { name, index: openCount, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() });
-        if (openCount + 1 >= 4) {
-          await set(ref(db, 'rooms/_matchmaking/public'), null);
+      if (openCode) {
+        const result = await runTransaction(ref(db, `rooms/${openCode}`), (room) => {
+          if (!room) return room; // sala não existe mais: aborta
+          if (room.status !== 'lobby' || !room.public) return; // já iniciou ou não é pública: aborta
+          const players = room.players || {};
+          const count = Object.keys(players).length;
+          if (count >= 4) return; // sala cheia: aborta
+          room.players = players;
+          room.players[myId] = { name, index: count, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() };
+          return room;
+        });
+
+        if (result.committed) {
+          const finalRoom = result.snapshot.val();
+          const myData = (finalRoom.players || {})[myId];
+          myRoom = openCode; isHost = false; myIndex = myData ? myData.index : 0;
+          joined = true;
+
+          const newCount = Object.keys(finalRoom.players || {}).length;
+          if (newCount >= 4) {
+            try { await set(ref(db, 'rooms/_matchmaking/public'), null); } catch(e) {}
+          }
         }
-      } else {
+      }
+
+      if (!joined) {
+        // Sala indisponível/cheia (ou perdeu a corrida pela vaga): cria uma nova
         const newCode = genCode();
         myRoom = newCode; isHost = true; myIndex = 0;
         const roomData = {
