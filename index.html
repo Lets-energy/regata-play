@@ -1269,6 +1269,13 @@ function updateRaceLanes(data, pList) {
         placeEl.textContent = '💤 não completou';
         placeEl.style.display = 'block';
       }
+    } else {
+      // Voltou a remar: limpa qualquer aviso antigo de "não completou"
+      if (lane) lane.classList.remove('lane-finished');
+      if (placeEl) {
+        placeEl.textContent = '';
+        placeEl.style.display = 'none';
+      }
     }
   });
 }
