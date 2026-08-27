@@ -837,7 +837,7 @@ async function tryAddBot(code) {
 
   const botId = 'bot' + Math.random().toString(36).slice(2, 8);
   const botName = BOT_NAMES[count % BOT_NAMES.length];
-  const paceMs = 280 + Math.floor(Math.random() * 570); // ritmo aleatório por bot
+  const paceMs = 150 + Math.floor(Math.random() * 300); // ritmo mais competitivo por bot (150-450ms)
   const botData = {
     name: botName, index: count, strokes: 0, finished: false,
     finishTime: null, isBot: true, lastMove: Date.now()
@@ -864,7 +864,7 @@ async function tryAddBot(code) {
 
 function startBotRowing(code, botId, dist, paceMs) {
   function scheduleNext() {
-    const delay = Math.max(120, paceMs + Math.floor(Math.random() * 100 - 50));
+    const delay = Math.max(80, paceMs + Math.floor(Math.random() * 100 - 50));
     botRowTimers[botId] = setTimeout(tick, delay);
   }
 
