@@ -592,6 +592,15 @@ function genCode() {
   return Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
 }
 
+// Escapa texto vindo de terceiros (nomes de jogadores) antes de inserir em innerHTML.
+// Evita XSS: sem isso, alguém poderia colocar "<img src=x onerror=...>" como nome
+// e o código rodaria no navegador de todo mundo que visse a sala/ranking.
+const _escDiv = document.createElement('div');
+function esc(str) {
+  _escDiv.textContent = str == null ? '' : String(str);
+  return _escDiv.innerHTML;
+}
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -1251,7 +1260,7 @@ async function loadRanking(dist) {
   list.innerHTML = entries.map((e, i) => `
     <div class="rank-item">
       <div class="rank-pos">${medals[i] || (i + 1) + 'º'}</div>
-      <div class="rank-name">${e.name}</div>
+      <div class="rank-name">${esc(e.name)}</div>
       <div class="rank-time">${(e.duration / 1000).toFixed(1)}s</div>
     </div>
   `).join('');
@@ -1287,7 +1296,7 @@ function renderRace(data, pList) {
     lane.id = 'lane-' + id;
     lane.innerHTML = `
       <div class="lane-info">
-        <div class="lane-name ${isMe ? 'my-label' : ''}">${isMe ? '▶ ' : ''}${p.name}</div>
+        <div class="lane-name ${isMe ? 'my-label' : ''}">${isMe ? '▶ ' : ''}${esc(p.name)}</div>
         <div class="lane-laps" id="strokes-${id}">0/${data.dist}</div>
         <div class="lane-place" id="place-${id}"></div>
       </div>
@@ -1385,7 +1394,7 @@ function showPodium(data, pList) {
     block.innerHTML = `
       <div class="podium-pos">${medals[realPos] || (realPos+1)+'º'}</div>
       <div class="podium-boat-icon">${BOATS[p.index]}</div>
-      <div class="podium-name">${p.name}</div>
+      <div class="podium-name">${esc(p.name)}</div>
       ${p.dnf ? '<div style="font-size:0.65rem;color:var(--silver)">💤 não completou</div>' : ''}
     `;
     stage.appendChild(block);
@@ -1396,7 +1405,7 @@ function showPodium(data, pList) {
     const [id, p] = sorted[3];
     const item = document.createElement('div');
     item.className = 'podium-extra-item';
-    item.innerHTML = `<div class="podium-rank">4º</div><div class="extra-boat">${BOATS[p.index]}</div><div class="extra-name">${p.name}</div>${p.dnf ? '<div style="font-size:0.65rem;color:var(--silver);margin-left:auto">💤 não completou</div>' : ''}`;
+    item.innerHTML = `<div class="podium-rank">4º</div><div class="extra-boat">${BOATS[p.index]}</div><div class="extra-name">${esc(p.name)}</div>${p.dnf ? '<div style="font-size:0.65rem;color:var(--silver);margin-left:auto">💤 não completou</div>' : ''}`;
     extra.appendChild(item);
   }
 
@@ -1458,7 +1467,7 @@ function renderLobbyPlayers(pList) {
     el.innerHTML = `
       <div class="player-boat" style="background:${COLORS[p.index]}22;color:${COLORS[p.index]}">${BOATS[p.index]}</div>
       <div>
-        <div class="player-name">${p.name}</div>
+        <div class="player-name">${esc(p.name)}</div>
         <div class="player-tag">${i===0?'anfitrião':'jogador '+(i+1)}</div>
       </div>
       <div class="${i===0?'ready-badge':'waiting-badge'}">${i===0?'pronto':'aguardando'}</div>
@@ -1476,7 +1485,7 @@ function renderQuickwaitPlayers(pList) {
     el.className = 'player-item';
     el.innerHTML = `
       <div class="player-boat" style="background:${COLORS[p.index]}22;color:${COLORS[p.index]}">${BOATS[p.index]}</div>
-      <div class="player-name">${p.name}</div>
+      <div class="player-name">${esc(p.name)}</div>
     `;
     container.appendChild(el);
   });
@@ -1491,7 +1500,7 @@ function renderWaitPlayers(pList) {
     el.className = 'player-item';
     el.innerHTML = `
       <div class="player-boat" style="background:${COLORS[p.index]}22">${BOATS[p.index]}</div>
-      <div class="player-name">${p.name}</div>
+      <div class="player-name">${esc(p.name)}</div>
     `;
     container.appendChild(el);
   });
