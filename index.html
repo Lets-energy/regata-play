@@ -529,6 +529,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getDatabase, ref, set, get, update, onValue, off, remove, serverTimestamp, push, runTransaction }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app-check.js";
 
 
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -553,6 +555,10 @@ let localState = null;
 
 try {
   const app = initializeApp(firebaseConfig);
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider('6LevxqctAAAAAIuq3SBh7k9ElOGwwvQ0yqOaaWfl'),
+    isTokenAutoRefreshEnabled: true
+  });
   db = getDatabase(app);
 } catch(e) {
   useLocal = true;
