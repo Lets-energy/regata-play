@@ -267,6 +267,8 @@
     background: rgba(10,42,74,0.45); cursor: pointer; border: none; padding: 0;
   }
   .owl-medal-tap.show { display: flex; }
+  .owl-medal-tap span { animation: owlTapPulse 1.1s ease-in-out infinite; }
+  @keyframes owlTapPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
   .owl-medal-tap span {
     width: 46px; height: 46px; border-radius: 50%;
     background: rgba(255,255,255,0.9); color: var(--ocean);
@@ -1426,30 +1428,39 @@ function attemptOwlPlay(owlVideo) {
   const showTap = () => tapBtn && tapBtn.classList.add('show');
   const hideTap = () => tapBtn && tapBtn.classList.remove('show');
 
+  // Liga o ícone de play ao estado REAL do vídeo (não a uma suposição sobre
+  // se o autoplay funcionou) — assim, seja qual for o motivo do bloqueio
+  // (política do navegador, webview de app, etc.), o ícone sempre aparece
+  // quando o vídeo está de fato pausado, e some quando ele começa a rodar.
+  if (!owlVideo._ownEvtsBound) {
+    owlVideo.addEventListener('playing', hideTap);
+    owlVideo.addEventListener('pause', showTap);
+    owlVideo._ownEvtsBound = true;
+  }
+
   const tryPlay = () => {
     try { owlVideo.currentTime = 0; } catch(e) {}
     const p = owlVideo.play();
-    if (p && p.catch) {
-      p.then(hideTap).catch(showTap);
-    } else {
-      hideTap();
-    }
+    if (p && p.catch) p.catch(() => {}); // o listener de 'pause' já cobre a UI
   };
 
   if (owlVideo.readyState >= 2) {
     tryPlay();
   } else {
-    // Ainda não carregou o suficiente: tenta assim que possível.
     owlVideo.addEventListener('loadeddata', tryPlay, { once: true });
     tryPlay(); // tenta mesmo assim, sem custo
   }
+
+  // Checagem de segurança: se depois de meio segundo o vídeo continuar
+  // pausado (alguns navegadores nem disparam 'pause' nesse caso), mostra
+  // o botão de qualquer forma.
+  setTimeout(() => { if (owlVideo.paused) showTap(); }, 500);
 }
 
 window.playOwlVideo = () => {
   const owlVideo = document.getElementById('owl-medal-video');
-  const tapBtn = document.getElementById('owl-medal-tap-btn');
   if (!owlVideo) return;
-  owlVideo.play().then(() => tapBtn && tapBtn.classList.remove('show')).catch(() => {});
+  owlVideo.play().catch(() => {});
 };
 
 window.toggleOwlSound = () => {
