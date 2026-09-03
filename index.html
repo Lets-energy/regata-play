@@ -261,6 +261,18 @@
     font-size: 0.8rem; display: flex; align-items: center; justify-content: center;
     cursor: pointer;
   }
+  .owl-medal-tap {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(10,42,74,0.45); cursor: pointer; border: none; padding: 0;
+  }
+  .owl-medal-tap.show { display: flex; }
+  .owl-medal-tap span {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(255,255,255,0.9); color: var(--ocean);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; padding-left: 3px;
+  }
 
   /* ── TELA ENTRAR ── */
   #screen-join { align-items: center; justify-content: center; text-align: center; gap: 1.5rem; }
@@ -500,7 +512,8 @@
 <!-- TELA PÓDIO -->
 <div class="screen" id="screen-podium">
   <div class="owl-medal-wrap">
-    <video id="owl-medal-video" src="coruja-medalha.mp4" playsinline muted autoplay></video>
+    <video id="owl-medal-video" src="coruja-medalha.mp4" playsinline muted autoplay preload="auto"></video>
+    <button class="owl-medal-tap" id="owl-medal-tap-btn" onclick="playOwlVideo()"><span>▶</span></button>
     <button class="owl-medal-mute" id="owl-medal-mute-btn" onclick="toggleOwlSound()">🔇</button>
   </div>
   <div class="podium-title">PÓDIO!</div>
@@ -752,15 +765,34 @@ async function enterQuickplay(name) {
       scheduleBotFill(newCode);
     }
   } else {
-    try {
-      const matchSnap = await get(ref(db, 'rooms/_matchmaking/public'));
-      const openCode = matchSnap.val();
-      let joined = false;
+    // Matchmaking 100% atômico via transações — evita que dois jogadores que
+    // clicam "Jogar com Desconhecidos" ao mesmo tempo criem salas separadas
+    // (o antigo get()+set() do código da sala não era atômico e causava isso).
+    const MAX_ATTEMPTS = 4;
+    let joined = false;
 
-      if (openCode) {
-        const result = await runTransaction(ref(db, `rooms/${openCode}`), (room) => {
-          if (!room) return room; // sala não existe mais: aborta
-          if (room.status !== 'lobby' || !room.public) return; // já iniciou ou não é pública: aborta
+    for (let attempt = 0; !joined && attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        // 1) Reserva atomicamente o código da sala pública. Se dois jogadores
+        //    caírem aqui ao mesmo tempo com o ponteiro vazio, o Firebase resolve
+        //    a disputa e os dois terminam com o MESMO código.
+        const claimTx = await runTransaction(ref(db, 'rooms/_matchmaking/public'), (current) => {
+          return current || genCode();
+        });
+        const code = claimTx.snapshot.val();
+
+        // 2) Cria a sala (se ainda não existir) ou ocupa uma vaga nela. Se dois
+        //    jogadores tentarem criar a mesma sala nesse mesmo instante, o
+        //    Firebase reexecuta essa função com o dado já criado pelo primeiro,
+        //    e o segundo automaticamente entra como jogador 2 em vez de recriar.
+        const result = await runTransaction(ref(db, `rooms/${code}`), (room) => {
+          if (!room) {
+            return {
+              host: myId, code, dist: 50, status: 'lobby', created: Date.now(), public: true,
+              players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() } }
+            };
+          }
+          if (room.status !== 'lobby' || !room.public) return; // já iniciou: aborta
           const players = room.players || {};
           const count = Object.keys(players).length;
           if (count >= 4) return; // sala cheia: aborta
@@ -772,30 +804,31 @@ async function enterQuickplay(name) {
         if (result.committed) {
           const finalRoom = result.snapshot.val();
           const myData = (finalRoom.players || {})[myId];
-          myRoom = openCode; isHost = false; myIndex = myData ? myData.index : 0;
+          myRoom = code;
+          isHost = finalRoom.host === myId;
+          myIndex = myData ? myData.index : 0;
           joined = true;
+
+          if (isHost) scheduleBotFill(code);
 
           const newCount = Object.keys(finalRoom.players || {}).length;
           if (newCount >= 4) {
-            try { await set(ref(db, 'rooms/_matchmaking/public'), null); } catch(e) {}
+            // Limpa o ponteiro só se ele ainda apontar pra essa sala (evita
+            // apagar por engano o ponteiro de uma sala mais nova).
+            await runTransaction(ref(db, 'rooms/_matchmaking/public'), (current) => current === code ? null : current);
           }
+        } else {
+          // O código reservado apontava pra uma sala já cheia/iniciada
+          // (ponteiro desatualizado): limpa e tenta de novo.
+          await runTransaction(ref(db, 'rooms/_matchmaking/public'), (current) => current === code ? null : current);
         }
+      } catch (e) {
+        console.error('Erro no matchmaking (tentativa ' + (attempt + 1) + '):', e);
       }
+    }
 
-      if (!joined) {
-        // Sala indisponível/cheia (ou perdeu a corrida pela vaga): cria uma nova
-        const newCode = genCode();
-        myRoom = newCode; isHost = true; myIndex = 0;
-        const roomData = {
-          host: myId, code: newCode, dist: 50, status: 'lobby', created: Date.now(), public: true,
-          players: { [myId]: { name, index: 0, strokes: 0, finished: false, finishTime: null, lastMove: Date.now() } }
-        };
-        await set(ref(db, `rooms/${newCode}`), roomData);
-        await set(ref(db, 'rooms/_matchmaking/public'), newCode);
-        scheduleBotFill(newCode);
-      }
-    } catch (e) {
-      console.error('Erro no matchmaking, caindo para modo local:', e);
+    if (!joined) {
+      console.error('Não foi possível entrar numa sala pública após várias tentativas, caindo para modo local.');
       useLocal = true;
       isPublicRoom = false;
       await enterQuickplay(name);
@@ -1043,6 +1076,16 @@ async function checkInactivePlayers() {
 // ──────────────────────────────
 window.startRace = async () => {
   if (!isHost) return;
+
+  // Se for sala pública, limpa o ponteiro de matchmaking assim que a corrida
+  // vai começar, mesmo quando quem completou a sala foi um bot — evita que
+  // outro jogador tente entrar numa sala que já está de saída.
+  if (isPublicRoom && !useLocal) {
+    try {
+      await runTransaction(ref(db, 'rooms/_matchmaking/public'), (current) => current === myRoom ? null : current);
+    } catch (e) { console.error('Erro ao limpar ponteiro de matchmaking:', e); }
+  }
+
   // Countdown 3..2..1..GO
   for (let i = 3; i >= 1; i--) {
     await updateRoom({ status: 'countdown', countdownNum: i });
@@ -1358,13 +1401,41 @@ function showPodium(data, pList) {
   }
 
   const owlVideo = document.getElementById('owl-medal-video');
-  if (owlVideo) {
-    owlVideo.currentTime = 0;
-    owlVideo.play().catch(() => {});
-  }
+  if (owlVideo) attemptOwlPlay(owlVideo);
 
   showScreen('screen-podium');
 }
+
+function attemptOwlPlay(owlVideo) {
+  const tapBtn = document.getElementById('owl-medal-tap-btn');
+  const showTap = () => tapBtn && tapBtn.classList.add('show');
+  const hideTap = () => tapBtn && tapBtn.classList.remove('show');
+
+  const tryPlay = () => {
+    try { owlVideo.currentTime = 0; } catch(e) {}
+    const p = owlVideo.play();
+    if (p && p.catch) {
+      p.then(hideTap).catch(showTap);
+    } else {
+      hideTap();
+    }
+  };
+
+  if (owlVideo.readyState >= 2) {
+    tryPlay();
+  } else {
+    // Ainda não carregou o suficiente: tenta assim que possível.
+    owlVideo.addEventListener('loadeddata', tryPlay, { once: true });
+    tryPlay(); // tenta mesmo assim, sem custo
+  }
+}
+
+window.playOwlVideo = () => {
+  const owlVideo = document.getElementById('owl-medal-video');
+  const tapBtn = document.getElementById('owl-medal-tap-btn');
+  if (!owlVideo) return;
+  owlVideo.play().then(() => tapBtn && tapBtn.classList.remove('show')).catch(() => {});
+};
 
 window.toggleOwlSound = () => {
   const owlVideo = document.getElementById('owl-medal-video');
